@@ -8,7 +8,6 @@ Submodules
 
    src.experiments.visualize_nn_progress
    src.experiments.word_rec
-   src.experiments.word_spotting
 
 Module contents
 ---------------
