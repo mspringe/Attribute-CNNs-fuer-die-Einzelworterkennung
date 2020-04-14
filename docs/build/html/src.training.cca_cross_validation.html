@@ -1,0 +1,224 @@
+
+
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>src.training.cca_cross_validation module &#8212; Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</title>
+    <link rel="stylesheet" href="_static/p_sphinx_theme.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/local_fonts.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/javascript" src="_static/jquery.cookie.js"></script>
+    <script type="text/javascript" src="_static/p_sphinx_theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="src.training.cca_trainer module" href="src.training.cca_trainer.html" />
+    <link rel="prev" title="src.training package" href="src.training.html" /> 
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head><body>
+      <div class="relbar-top">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+        <li class="right" >
+          <a href="src.training.cca_trainer.html" title="src.training.cca_trainer module"
+             accesskey="N">next</a> &nbsp; &nbsp;</li>
+        <li class="right" >
+          <a href="src.training.html" title="src.training package"
+             accesskey="P">previous</a> &nbsp; &nbsp;</li>
+      <li><a href="index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="src.html" >src package</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="src.training.html" accesskey="U">src.training package</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-src.training.cca_cross_validation">
+<span id="src-training-cca-cross-validation-module"></span><h1>src.training.cca_cross_validation module<a class="headerlink" href="#module-src.training.cca_cross_validation" title="Permalink to this headline">¶</a></h1>
+<p>This module provides methods to run a cross validation for an RCCA estimator.</p>
+<p>Example use-case:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span class="n">python3</span> <span class="n">src</span><span class="o">/</span><span class="n">training</span><span class="o">/</span><span class="n">cca_cross_validation</span><span class="o">.</span><span class="n">py</span> \
+<span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">dir_out</span> \
+<span class="n">gw</span> \
+<span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">gw_database</span><span class="o">/</span><span class="n">almazan</span><span class="o">/</span><span class="n">queries</span><span class="o">/</span><span class="n">queries</span><span class="o">.</span><span class="n">gtp</span> \
+<span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">gw_database</span><span class="o">/</span><span class="n">almazan</span><span class="o">/</span><span class="n">images</span> \
+<span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">PHOCNet_statedict</span>
+<span class="o">--</span><span class="n">k_fold</span><span class="o">=</span><span class="mi">1</span> \
+<span class="o">--</span><span class="n">model_name</span><span class="o">=</span><span class="n">my_RCCA</span> \
+<span class="o">--</span><span class="n">gpu_idx</span><span class="o">=</span><span class="n">cuda</span><span class="p">:</span><span class="mi">0</span> \
+<span class="o">--</span><span class="n">alphabet</span><span class="o">=</span><span class="n">ldp</span>
+</pre></div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<dl class="function">
+<dt id="src.training.cca_cross_validation.cca_run">
+<code class="sig-prename descclassname">src.training.cca_cross_validation.</code><code class="sig-name descname">cca_run</code><span class="sig-paren">(</span><em class="sig-param">dims</em>, <em class="sig-param">regs</em>, <em class="sig-param">dset_train</em>, <em class="sig-param">dset_test</em>, <em class="sig-param">net</em>, <em class="sig-param">words</em>, <em class="sig-param">device</em>, <em class="sig-param">logger</em>, <em class="sig-param">alphabet</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/src/training/cca_cross_validation.html#cca_run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#src.training.cca_cross_validation.cca_run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Cross validation of different hyper parameters for regularised CCA</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dims</strong> – dimension paraameters of the CCAs subspace</p></li>
+<li><p><strong>regs</strong> – regularization parameters</p></li>
+<li><p><strong>dset_train</strong> – training dataset</p></li>
+<li><p><strong>dset_test</strong> – test dataset</p></li>
+<li><p><strong>net</strong> – a PHOCNet</p></li>
+<li><p><strong>words</strong> – lexicon of words</p></li>
+<li><p><strong>device</strong> – gpu device to place the PHOCNet on</p></li>
+<li><p><strong>logger</strong> – logger of information</p></li>
+<li><p><strong>alphabet</strong> – alphabet for PHOC</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>word errors and respective configurations in that order</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="src.training.cca_cross_validation.cross_val">
+<code class="sig-prename descclassname">src.training.cca_cross_validation.</code><code class="sig-name descname">cross_val</code><span class="sig-paren">(</span><em class="sig-param">dset_train: src.io.dataloader.DSetPhoc, net, words, device, logger, n_fold=4, alphabet=[&lt;Alphabet.ASCII_LOWER: 1&gt;, &lt;Alphabet.ASCII_UPPER: 2&gt;, &lt;Alphabet.ASCII_DIGITS: 4&gt;]</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/src/training/cca_cross_validation.html#cross_val"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#src.training.cca_cross_validation.cross_val" title="Permalink to this definition">¶</a></dt>
+<dd><p>Running cross validation with fixed hyperparameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dset_train</strong> – training dataset</p></li>
+<li><p><strong>net</strong> – a PHOCNet</p></li>
+<li><p><strong>words</strong> – lexicon of words</p></li>
+<li><p><strong>device</strong> – gpu device to place the PHOCNet on</p></li>
+<li><p><strong>logger</strong> – logger of infomation</p></li>
+<li><p><strong>n_fold</strong> – number of folds for the cross validatin</p></li>
+<li><p><strong>alphabet</strong> – alphabet for HOC</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the besst cca and the corresponding mean word error</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="src.training.cca_cross_validation.gather_NC_TRANS_pairs">
+<code class="sig-prename descclassname">src.training.cca_cross_validation.</code><code class="sig-name descname">gather_NC_TRANS_pairs</code><span class="sig-paren">(</span><em class="sig-param">net</em>, <em class="sig-param">dset</em>, <em class="sig-param">logger</em>, <em class="sig-param">device</em>, <em class="sig-param">n_code_lvl=0</em>, <em class="sig-param">s_batch=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/src/training/cca_cross_validation.html#gather_NC_TRANS_pairs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#src.training.cca_cross_validation.gather_NC_TRANS_pairs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Gathering the neural codes/ estimated PHOC from a dataset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>net</strong> – a PHOCNet</p></li>
+<li><p><strong>dset</strong> – test dataset</p></li>
+<li><p><strong>logger</strong> – logger of infromation</p></li>
+<li><p><strong>device</strong> – gpu-device to place the PHOCNet on</p></li>
+<li><p><strong>n_code_lvl</strong> – level to extract neural codes from (see <a class="reference internal" href="src.nn.phocnet.html#src.nn.phocnet.PHOCNet.neural_codes" title="src.nn.phocnet.PHOCNet.neural_codes"><code class="xref py py-func docutils literal notranslate"><span class="pre">src.nn.phocnet.PHOCNet.neural_codes()</span></code></a>)</p></li>
+<li><p><strong>s_batch</strong> – size of batch for inference</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>neural codes and true transcriptions in that order</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="src.training.cca_cross_validation.w_err_CCA">
+<code class="sig-prename descclassname">src.training.cca_cross_validation.</code><code class="sig-name descname">w_err_CCA</code><span class="sig-paren">(</span><em class="sig-param">cca: src.estimation.cca.RCCAEstimator</em>, <em class="sig-param">n_codes</em>, <em class="sig-param">transcripts</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/src/training/cca_cross_validation.html#w_err_CCA"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#src.training.cca_cross_validation.w_err_CCA" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculating the number of words, that have been misclassified</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cca</strong> – an RCCA estimator</p></li>
+<li><p><strong>n_codes</strong> – neural codes/ estimated PHOC</p></li>
+<li><p><strong>transcripts</strong> – true transcriptions for respective  neural codes</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>number of words, that have been misclassified</p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/src.training.cca_cross_validation.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+      <div class="relbar-bottom">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+        <li class="right" >
+          <a href="src.training.cca_trainer.html" title="src.training.cca_trainer module"
+             >next</a> &nbsp; &nbsp;</li>
+        <li class="right" >
+          <a href="src.training.html" title="src.training package"
+             >previous</a> &nbsp; &nbsp;</li>
+      <li><a href="index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="src.html" >src package</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="src.training.html" >src.training package</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Maximilian Rüdiger Springenberg.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.3.0.
+    </div>
+      <!-- PSphinxTheme -->
+  </body>
+</html>

@@ -1,0 +1,7 @@
+rm -r build/html
+rm -r out/*.rst
+sphinx-apidoc -o out/ ../src -e
+mv out/modules.rst out/index.rst
+make html
+mv build/html/src.html build/html/index.html
+

@@ -1,0 +1,396 @@
+
+
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>src.util.phoc_util &#8212; Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</title>
+    <link rel="stylesheet" href="../../../_static/p_sphinx_theme.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/local_fonts.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/javascript" src="../../../_static/jquery.cookie.js"></script>
+    <script type="text/javascript" src="../../../_static/p_sphinx_theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head><body>
+      <div class="relbar-top">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+      <li><a href="../../../index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for src.util.phoc_util</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module provides methods to generate deterministic PHOC encodings, as well as methods for the CER and WER.</span>
+
+<span class="sd">.. moduleauthor:: Maximilian Springenberg &lt;mspringenberg@gmail.com&gt;</span>
+
+<span class="sd">|</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">deepcopy</span>
+<span class="kn">from</span> <span class="nn">enum</span> <span class="k">import</span> <span class="n">Enum</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">List</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">string</span>
+
+
+<span class="n">DEFAULT_PHOC_LEVELS</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">ALPHABET_PERFECT_IAM</span> <span class="o">=</span> <span class="s">&#39;!&quot;#&amp;</span><span class="se">\&#39;</span><span class="s">()*+,-./0123456789:;?abcdefghijklmnopqrstuvwxyz&#39;</span>
+<span class="n">ALPHABET_PERFECT_RIMES</span> <span class="o">=</span> <span class="s">&quot;%&#39;-/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°²&quot;</span>
+<span class="n">ALPHABET_PERFECT_GW</span> <span class="o">=</span> <span class="s">&#39;0123456789abcdefghijklmnopqrstuvwxyz&#39;</span>
+
+
+<div class="viewcode-block" id="Alphabet"><a class="viewcode-back" href="../../../src.util.phoc_util.html#src.util.phoc_util.Alphabet">[docs]</a><span class="k">class</span> <span class="nc">Alphabet</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;&quot;Attributes of an alphabet. Relevant to determine the semantic of a PHOC.&quot;&quot;&quot;</span>
+    <span class="n">ASCII_LOWER</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">ASCII_UPPER</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">ASCII_PUNCTUATION</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="n">ASCII_DIGITS</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="n">PERFECT_IAM</span> <span class="o">=</span> <span class="mi">5</span>
+    <span class="n">PERFECT_RIMES</span> <span class="o">=</span> <span class="mi">6</span>
+    <span class="n">PERFECT_GW</span> <span class="o">=</span> <span class="mi">7</span></div>
+
+
+<span class="n">DEFAULT_ALPHABET</span> <span class="o">=</span> <span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_LOWER</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_UPPER</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_DIGITS</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="rep_to_alphabet"><a class="viewcode-back" href="../../../src.util.phoc_util.html#src.util.phoc_util.rep_to_alphabet">[docs]</a><span class="k">def</span> <span class="nf">rep_to_alphabet</span><span class="p">(</span><span class="n">alph_chars</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    way of parsing an alphabet from a string</span>
+
+<span class="sd">    ================= =======</span>
+<span class="sd">    alphabet property char</span>
+<span class="sd">    ================= =======</span>
+<span class="sd">    ASCII_LOWER       l</span>
+<span class="sd">    ASCII_UPPER       u</span>
+<span class="sd">    ASCII_PUNCTUATION p</span>
+<span class="sd">    ASCII_DIGITS      d</span>
+<span class="sd">    ================= =======</span>
+
+<span class="sd">    :param alph_chars: characters indicating the alphabet attributes</span>
+<span class="sd">    :return: list of alphabet attributes (see :class:`Alphabet`)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c"># perfect fits</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">([</span><span class="n">a</span> <span class="ow">in</span> <span class="n">alph_chars</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="p">[</span><span class="s">&#39;gw&#39;</span><span class="p">,</span> <span class="s">&#39;iam&#39;</span><span class="p">,</span> <span class="s">&#39;rimes&#39;</span><span class="p">]])</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;multiple perfect fitting alphabets defeat purpose&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s">&#39;gw&#39;</span> <span class="ow">in</span> <span class="n">alph_chars</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_GW</span><span class="p">]</span>
+    <span class="k">if</span> <span class="s">&#39;iam&#39;</span> <span class="ow">in</span> <span class="n">alph_chars</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_IAM</span><span class="p">]</span>
+    <span class="k">if</span> <span class="s">&#39;rimes&#39;</span> <span class="ow">in</span> <span class="n">alph_chars</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_RIMES</span><span class="p">]</span>
+    <span class="c"># universal alphabets</span>
+    <span class="n">alph_chars</span> <span class="o">=</span> <span class="n">alph_chars</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="n">mapping</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;l&#39;</span><span class="p">:</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_LOWER</span><span class="p">,</span>
+               <span class="s">&#39;u&#39;</span><span class="p">:</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_UPPER</span><span class="p">,</span>
+               <span class="s">&#39;p&#39;</span><span class="p">:</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_PUNCTUATION</span><span class="p">,</span>
+               <span class="s">&#39;d&#39;</span><span class="p">:</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_DIGITS</span><span class="p">}</span>
+    <span class="n">alphabet</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">alph_chars</span><span class="p">:</span>
+        <span class="n">alphabet</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">mapping</span><span class="p">[</span><span class="n">c</span><span class="p">])</span>
+    <span class="n">alphabet</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">alphabet</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">alphabet</span></div>
+
+
+<div class="viewcode-block" id="alphabet_to_rep"><a class="viewcode-back" href="../../../src.util.phoc_util.html#src.util.phoc_util.alphabet_to_rep">[docs]</a><span class="k">def</span> <span class="nf">alphabet_to_rep</span><span class="p">(</span><span class="n">alphabet</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Alphabet</span><span class="p">]):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    way of parsing an alphabet to a string</span>
+
+<span class="sd">    ================= =======</span>
+<span class="sd">    alphabet property char</span>
+<span class="sd">    ================= =======</span>
+<span class="sd">    ASCII_LOWER       l</span>
+<span class="sd">    ASCII_UPPER       u</span>
+<span class="sd">    ASCII_PUNCTUATION p</span>
+<span class="sd">    ASCII_DIGITS      d</span>
+<span class="sd">    ================= =======</span>
+
+<span class="sd">    :param alphabet: properties of the alphabet (see :class:`Alphabet`)</span>
+<span class="sd">    :return: string of characters representing alphabet properties</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c"># perfect fits</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">([</span><span class="n">a</span> <span class="ow">in</span> <span class="n">alphabet</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_GW</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_IAM</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_RIMES</span><span class="p">]])</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;multiple perfect fitting alphabets defeat purpose&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_GW</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&#39;gw&#39;</span>
+    <span class="k">if</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_IAM</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&#39;iam&#39;</span>
+    <span class="k">if</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_RIMES</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&#39;rimes&#39;</span>
+    <span class="c"># universal alphabets</span>
+    <span class="n">mapping</span> <span class="o">=</span> <span class="p">{</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_LOWER</span><span class="p">:</span> <span class="s">&#39;l&#39;</span><span class="p">,</span>
+               <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_UPPER</span><span class="p">:</span> <span class="s">&#39;u&#39;</span><span class="p">,</span>
+               <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_PUNCTUATION</span><span class="p">:</span> <span class="s">&#39;p&#39;</span><span class="p">,</span>
+               <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_DIGITS</span><span class="p">:</span> <span class="s">&#39;d&#39;</span><span class="p">}</span>
+    <span class="n">rep</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">:</span>
+        <span class="n">rep</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">mapping</span><span class="p">[</span><span class="n">a</span><span class="p">])</span>
+    <span class="n">rep</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">rep</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">rep</span></div>
+
+
+<div class="viewcode-block" id="alphabet_chars"><a class="viewcode-back" href="../../../src.util.phoc_util.html#src.util.phoc_util.alphabet_chars">[docs]</a><span class="k">def</span> <span class="nf">alphabet_chars</span><span class="p">(</span><span class="n">alphabet</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Alphabet</span><span class="p">]):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    maps the alphabet-type to a list of strings</span>
+
+<span class="sd">    :param alphabet: alphabet-type (see :class:`Alphabet`)</span>
+<span class="sd">    :return: list of characters in alphabet-type</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c"># perfect fits</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">([</span><span class="n">a</span> <span class="ow">in</span> <span class="n">alphabet</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_GW</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_IAM</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_RIMES</span><span class="p">]])</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;multiple perfect fitting alphabets defeat purpose&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_GW</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ALPHABET_PERFECT_GW</span>
+    <span class="k">if</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_IAM</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ALPHABET_PERFECT_IAM</span>
+    <span class="k">if</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_RIMES</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ALPHABET_PERFECT_RIMES</span>
+    <span class="c"># universal alphabets</span>
+    <span class="n">alph_str</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_LOWER</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">:</span>
+        <span class="n">alph_str</span> <span class="o">+=</span> <span class="n">string</span><span class="o">.</span><span class="n">ascii_lowercase</span>
+    <span class="k">if</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_UPPER</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">:</span>
+        <span class="n">alph_str</span> <span class="o">+=</span> <span class="n">string</span><span class="o">.</span><span class="n">ascii_uppercase</span>
+    <span class="k">if</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_DIGITS</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">:</span>
+        <span class="n">alph_str</span> <span class="o">+=</span> <span class="n">string</span><span class="o">.</span><span class="n">digits</span>
+    <span class="k">if</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_PUNCTUATION</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">:</span>
+        <span class="n">alph_str</span> <span class="o">+=</span> <span class="n">string</span><span class="o">.</span><span class="n">punctuation</span>
+    <span class="k">return</span> <span class="n">alph_str</span></div>
+
+
+<div class="viewcode-block" id="occ"><a class="viewcode-back" href="../../../src.util.phoc_util.html#src.util.phoc_util.occ">[docs]</a><span class="k">def</span> <span class="nf">occ</span><span class="p">(</span><span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :param k: index of caracter</span>
+<span class="sd">    :param n: length of word</span>
+<span class="sd">    :return: occupied interval of k-th character for a word with length n in pct</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">n</span><span class="p">),</span> <span class="nb">float</span><span class="p">(</span><span class="n">k</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">n</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="occ_intersect"><a class="viewcode-back" href="../../../src.util.phoc_util.html#src.util.phoc_util.occ_intersect">[docs]</a><span class="k">def</span> <span class="nf">occ_intersect</span><span class="p">(</span><span class="n">intv_0</span><span class="p">,</span> <span class="n">intv_1</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :param intv_0: first interval to intersect</span>
+<span class="sd">    :param intv_1: second interval to intersect</span>
+<span class="sd">    :return: intersection of intervals</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">x0</span><span class="p">,</span> <span class="n">y0</span> <span class="o">=</span> <span class="n">intv_0</span>
+    <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span> <span class="o">=</span> <span class="n">intv_1</span>
+    <span class="k">if</span> <span class="n">x0</span> <span class="o">&gt;</span> <span class="n">y1</span> <span class="ow">or</span> <span class="n">y0</span> <span class="o">&lt;</span> <span class="n">x1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="k">None</span>
+    <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="n">x0</span><span class="p">,</span> <span class="n">x1</span><span class="p">),</span> <span class="nb">min</span><span class="p">(</span><span class="n">y0</span><span class="p">,</span> <span class="n">y1</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="occ_abs"><a class="viewcode-back" href="../../../src.util.phoc_util.html#src.util.phoc_util.occ_abs">[docs]</a><span class="k">def</span> <span class="nf">occ_abs</span><span class="p">(</span><span class="n">intv</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :param intv: interval</span>
+<span class="sd">    :return: absolute distance of interval</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">intv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">intv</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="is_occ"><a class="viewcode-back" href="../../../src.util.phoc_util.html#src.util.phoc_util.is_occ">[docs]</a><span class="k">def</span> <span class="nf">is_occ</span><span class="p">(</span><span class="n">intv_char</span><span class="p">,</span> <span class="n">intv_reg</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    determines whether an interval is occupied by region based on a 50% overlap threshold</span>
+
+<span class="sd">    :param intv_char: interval occupied by the character</span>
+<span class="sd">    :param intv_reg: interval of region</span>
+<span class="sd">    :return: boolena indicating occupation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">intv_itsct</span> <span class="o">=</span> <span class="n">occ_intersect</span><span class="p">(</span><span class="n">intv_char</span><span class="p">,</span> <span class="n">intv_reg</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">intv_itsct</span> <span class="ow">is</span> <span class="k">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="k">False</span>
+    <span class="n">abs_intv_intsct</span> <span class="o">=</span> <span class="n">occ_abs</span><span class="p">(</span><span class="n">intv_itsct</span><span class="p">)</span>
+    <span class="n">abs_intv_reg</span> <span class="o">=</span> <span class="n">occ_abs</span><span class="p">(</span><span class="n">intv_char</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">abs_intv_intsct</span> <span class="o">/</span> <span class="n">abs_intv_reg</span> <span class="o">&gt;=</span> <span class="mf">0.5</span></div>
+
+
+<div class="viewcode-block" id="phoc_levels"><a class="viewcode-back" href="../../../src.util.phoc_util.html#src.util.phoc_util.phoc_levels">[docs]</a><span class="k">def</span> <span class="nf">phoc_levels</span><span class="p">(</span><span class="n">word</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="n">DEFAULT_PHOC_LEVELS</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    calculates the substrings per level of a PHOC for a given word</span>
+
+<span class="sd">    :param word: word to generate PHOC for</span>
+<span class="sd">    :param levels: levels of PHOC</span>
+<span class="sd">    :return: list containing all substrings of the PHOC for its respective levels</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">levels</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">word</span><span class="p">]</span>
+    <span class="c"># cut_len = float(len(word)) / float(levels)</span>
+    <span class="c"># # length of cuts</span>
+    <span class="c"># regions = []</span>
+    <span class="c"># c_start = 0</span>
+    <span class="c"># list of strings</span>
+    <span class="n">substrings</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">regions</span> <span class="o">=</span> <span class="p">[</span><span class="n">occ</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">levels</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">levels</span><span class="p">)]</span>
+    <span class="c"># checking for overlapping characters for each individual region</span>
+    <span class="k">for</span> <span class="n">reg</span> <span class="ow">in</span> <span class="n">regions</span><span class="p">:</span>
+        <span class="n">sub_str</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">char</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">word</span><span class="p">):</span>
+            <span class="n">char_occ</span> <span class="o">=</span> <span class="n">occ</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">word</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">is_occ</span><span class="p">(</span><span class="n">char_occ</span><span class="p">,</span> <span class="n">reg</span><span class="p">):</span>
+                <span class="n">sub_str</span> <span class="o">+=</span> <span class="n">char</span>
+        <span class="n">substrings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">sub_str</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">phoc_levels</span><span class="p">(</span><span class="n">word</span><span class="p">,</span> <span class="n">levels</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">substrings</span></div>
+
+
+<div class="viewcode-block" id="hoc"><a class="viewcode-back" href="../../../src.util.phoc_util.html#src.util.phoc_util.hoc">[docs]</a><span class="k">def</span> <span class="nf">hoc</span><span class="p">(</span><span class="n">word</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">alphabet</span><span class="o">=</span><span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_LOWER</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_DIGITS</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_PUNCTUATION</span><span class="p">]):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :param word: request</span>
+<span class="sd">    :param alphabet: alphabet used for HOC</span>
+<span class="sd">    :return: HOC for the respective word</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">hoc_chars</span> <span class="o">=</span> <span class="n">alphabet_chars</span><span class="p">(</span><span class="n">alphabet</span><span class="p">)</span>
+    <span class="n">hoc_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">hoc_chars</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">char</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">hoc_chars</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">char</span> <span class="ow">in</span> <span class="n">word</span><span class="p">:</span>
+            <span class="n">hoc_arr</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">hoc_arr</span></div>
+
+
+<div class="viewcode-block" id="phoc"><a class="viewcode-back" href="../../../src.util.phoc_util.html#src.util.phoc_util.phoc">[docs]</a><span class="k">def</span> <span class="nf">phoc</span><span class="p">(</span><span class="n">word</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">alphabet</span><span class="o">=</span><span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_LOWER</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_DIGITS</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_PUNCTUATION</span><span class="p">],</span>
+         <span class="n">levels</span><span class="o">=</span><span class="n">DEFAULT_PHOC_LEVELS</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    creates a PHOC encoding from a word</span>
+
+<span class="sd">    :param word: string to be encoded into a PHOC</span>
+<span class="sd">    :param alphabet: alphabet used for PHOC</span>
+<span class="sd">    :param levels: levels of PHOC</span>
+<span class="sd">    :return: np.array of PHOC encoding as np.uint8</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">substrings</span> <span class="o">=</span> <span class="n">phoc_levels</span><span class="p">(</span><span class="n">word</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="n">levels</span><span class="p">)</span>
+    <span class="n">hocs</span> <span class="o">=</span> <span class="p">[</span><span class="n">hoc</span><span class="p">(</span><span class="n">sub_str</span><span class="p">,</span> <span class="n">alphabet</span><span class="o">=</span><span class="n">alphabet</span><span class="p">)</span> <span class="k">for</span> <span class="n">sub_str</span> <span class="ow">in</span> <span class="n">substrings</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">hocs</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="len_phoc"><a class="viewcode-back" href="../../../src.util.phoc_util.html#src.util.phoc_util.len_phoc">[docs]</a><span class="k">def</span> <span class="nf">len_phoc</span><span class="p">(</span><span class="n">levels</span><span class="o">=</span><span class="n">DEFAULT_PHOC_LEVELS</span><span class="p">,</span>
+             <span class="n">alphabet</span><span class="o">=</span><span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_LOWER</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_DIGITS</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_PUNCTUATION</span><span class="p">]):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    clalculates the length of a PHOC vector for a given number of levels</span>
+
+<span class="sd">    :param levels: levels of PHOC</span>
+<span class="sd">    :param alphabet: alphabet used for PHOC</span>
+<span class="sd">    :return: length of PHOC</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">phoc</span><span class="p">(</span><span class="s">&#39;&#39;</span><span class="p">,</span> <span class="n">alphabet</span><span class="o">=</span><span class="n">alphabet</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="n">levels</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="char_err"><a class="viewcode-back" href="../../../src.util.phoc_util.html#src.util.phoc_util.char_err">[docs]</a><span class="k">def</span> <span class="nf">char_err</span><span class="p">(</span><span class="n">word</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">estimate</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    character error for single words, using dynamic programming.</span>
+<span class="sd">    :math:`O(mn)` , with  :math:`m = |word|, n = |estimate|`</span>
+
+<span class="sd">    :param word: gt word</span>
+<span class="sd">    :param estimate: estimated word</span>
+<span class="sd">    :return: character error and relative character error in that order</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">c_gt</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">word</span><span class="p">]</span>
+    <span class="n">c_est</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">estimate</span><span class="p">]</span>
+    <span class="c"># initialize table</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">c_gt</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">c_est</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">c_gt</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">c_est</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">c_gt</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">c_est</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">j</span>
+            <span class="k">elif</span> <span class="n">j</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">d</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>
+    <span class="c"># compute path</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">c_gt</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">c_est</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">c_gt</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">c_est</span><span class="p">[</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>
+                <span class="n">d</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">substitution</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="n">insertion</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="n">deletion</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="n">d</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">substitution</span><span class="p">,</span> <span class="n">insertion</span><span class="p">,</span> <span class="n">deletion</span><span class="p">)</span>
+    <span class="n">c_err</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">c_gt</span><span class="p">)][</span><span class="nb">len</span><span class="p">(</span><span class="n">c_est</span><span class="p">)]</span>
+    <span class="n">c_err_pct</span> <span class="o">=</span> <span class="n">c_err</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">word</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">c_err</span><span class="p">,</span> <span class="n">c_err_pct</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="word_err"><a class="viewcode-back" href="../../../src.util.phoc_util.html#src.util.phoc_util.word_err">[docs]</a><span class="k">def</span> <span class="nf">word_err</span><span class="p">(</span><span class="n">word</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">estimate</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    word error for single words</span>
+
+<span class="sd">    :param word: gt word</span>
+<span class="sd">    :param estimate: estimated word</span>
+<span class="sd">    :return: equality as float</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">word</span> <span class="o">==</span> <span class="n">estimate</span> <span class="k">else</span> <span class="mi">1</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+      <div class="relbar-bottom">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+      <li><a href="../../../index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Maximilian Rüdiger Springenberg.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.3.0.
+    </div>
+      <!-- PSphinxTheme -->
+  </body>
+</html>

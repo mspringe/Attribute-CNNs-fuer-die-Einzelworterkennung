@@ -1,0 +1,182 @@
+
+
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>src.util.representation_util module &#8212; Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</title>
+    <link rel="stylesheet" href="_static/p_sphinx_theme.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/local_fonts.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/javascript" src="_static/jquery.cookie.js"></script>
+    <script type="text/javascript" src="_static/p_sphinx_theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="src.util.sanity_util module" href="src.util.sanity_util.html" />
+    <link rel="prev" title="src.util.phoc_util module" href="src.util.phoc_util.html" /> 
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head><body>
+      <div class="relbar-top">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+        <li class="right" >
+          <a href="src.util.sanity_util.html" title="src.util.sanity_util module"
+             accesskey="N">next</a> &nbsp; &nbsp;</li>
+        <li class="right" >
+          <a href="src.util.phoc_util.html" title="src.util.phoc_util module"
+             accesskey="P">previous</a> &nbsp; &nbsp;</li>
+      <li><a href="index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="src.html" >src package</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="src.util.html" accesskey="U">src.util package</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-src.util.representation_util">
+<span id="src-util-representation-util-module"></span><h1>src.util.representation_util module<a class="headerlink" href="#module-src.util.representation_util" title="Permalink to this headline">¶</a></h1>
+<p>This module provides a script to extract data from all JSON files stored in a specific directory and create a HTML
+table for an better overview of the data.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<dl class="function">
+<dt id="src.util.representation_util.js_stylize">
+<code class="sig-prename descclassname">src.util.representation_util.</code><code class="sig-name descname">js_stylize</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/src/util/representation_util.html#js_stylize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#src.util.representation_util.js_stylize" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="src.util.representation_util.jsons_to_table">
+<code class="sig-prename descclassname">src.util.representation_util.</code><code class="sig-name descname">jsons_to_table</code><span class="sig-paren">(</span><em class="sig-param">dir_jsons</em>, <em class="sig-param">dir_out</em>, <em class="sig-param">name</em>, <em class="sig-param">format='html'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/src/util/representation_util.html#jsons_to_table"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#src.util.representation_util.jsons_to_table" title="Permalink to this definition">¶</a></dt>
+<dd><p>Extracts the informations stored in the JSON files and stores creates an  HTML-table for them.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dir_jsons</strong> – directory of JSON files</p></li>
+<li><p><strong>dir_out</strong> – output directory of the HTML-table</p></li>
+<li><p><strong>name</strong> – name of the HTML page</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="src.util.representation_util.parser">
+<code class="sig-prename descclassname">src.util.representation_util.</code><code class="sig-name descname">parser</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/src/util/representation_util.html#parser"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#src.util.representation_util.parser" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates a parser of this script.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><p>args-parser with the following arguments</p>
+<p>Positional:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 22%" />
+<col style="width: 78%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>arg</p></th>
+<th class="head"><p>semantic</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>dir_jsons</p></td>
+<td><p>directory of JSON files</p></td>
+</tr>
+<tr class="row-odd"><td><p>dir_out</p></td>
+<td><p>the directory to safe the HTML page to</p></td>
+</tr>
+<tr class="row-even"><td><p>file_name</p></td>
+<td><p>name of the HTML file</p></td>
+</tr>
+</tbody>
+</table>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/src.util.representation_util.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+      <div class="relbar-bottom">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+        <li class="right" >
+          <a href="src.util.sanity_util.html" title="src.util.sanity_util module"
+             >next</a> &nbsp; &nbsp;</li>
+        <li class="right" >
+          <a href="src.util.phoc_util.html" title="src.util.phoc_util module"
+             >previous</a> &nbsp; &nbsp;</li>
+      <li><a href="index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="src.html" >src package</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="src.util.html" >src.util package</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Maximilian Rüdiger Springenberg.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.3.0.
+    </div>
+      <!-- PSphinxTheme -->
+  </body>
+</html>

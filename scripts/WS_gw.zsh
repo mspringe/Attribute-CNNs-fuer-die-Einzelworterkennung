@@ -1,0 +1,2 @@
+echo "running: nice python3 ../src/experiments/word_spotting.py /data/mspringe/experiments/WS/ gw /data/mspringe/gwdb/almazan/queries/queries.gtp /data/mspringe/gwdb/almazan/images $1 --gpu=$2 --k_fold=$3 --alphabet=$4"
+nice python3 ../src/experiments/word_spotting.py /data/mspringe/experiments/WS/ gw /data/mspringe/gwdb/almazan/queries/queries.gtp /data/mspringe/gwdb/almazan/images $1 --gpu=$2 --k_fold=$3 --alphabet=$4

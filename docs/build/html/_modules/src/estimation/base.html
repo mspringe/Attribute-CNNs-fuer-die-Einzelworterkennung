@@ -1,0 +1,365 @@
+
+
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>src.estimation.base &#8212; Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</title>
+    <link rel="stylesheet" href="../../../_static/p_sphinx_theme.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/local_fonts.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/javascript" src="../../../_static/jquery.cookie.js"></script>
+    <script type="text/javascript" src="../../../_static/p_sphinx_theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head><body>
+      <div class="relbar-top">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+      <li><a href="../../../index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for src.estimation.base</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">In this module we introduce a base class for estimation, that is solely used for duck typing,</span>
+<span class="sd">as well as a base class for an easy implementation of Metric based estimators.</span>
+
+<span class="sd">.. moduleauthor:: Maximilian Springenberg &lt;mspringenberg@gmail.com&gt;</span>
+
+<span class="sd">|</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">deepcopy</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">from</span> <span class="nn">enum</span> <span class="k">import</span> <span class="n">Enum</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">scipy.spatial.distance</span> <span class="k">import</span> <span class="n">cdist</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">pickle</span>
+<span class="kn">from</span> <span class="nn">src.util</span> <span class="k">import</span> <span class="n">sanity_util</span><span class="p">,</span> <span class="n">phoc_util</span>
+<span class="kn">from</span> <span class="nn">src.util.phoc_util</span> <span class="k">import</span> <span class="n">Alphabet</span>
+
+
+<div class="viewcode-block" id="Metrices"><a class="viewcode-back" href="../../../src.estimation.base.html#src.estimation.base.Metrices">[docs]</a><span class="k">class</span> <span class="nc">Metrices</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Unique values for metrices</span>
+
+<span class="sd">    Possible metrices are:</span>
+
+<span class="sd">    * MAHALANOBIS</span>
+<span class="sd">    * EUCLIDEAN</span>
+<span class="sd">    * COSINE</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">MAHALANOBIS</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">EUCLIDEAN</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">COSINE</span> <span class="o">=</span> <span class="mi">3</span></div>
+
+
+<div class="viewcode-block" id="Estimator"><a class="viewcode-back" href="../../../src.estimation.base.html#src.estimation.base.Estimator">[docs]</a><span class="k">class</span> <span class="nc">Estimator</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Abstract class for all estimators.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">words</span><span class="p">,</span> <span class="n">train_data</span><span class="o">=</span><span class="k">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        An estimator shall be initialized with a list of words (the lexicon).</span>
+<span class="sd">        Training data is optional</span>
+
+<span class="sd">        :param words: List of words/ lexicon</span>
+<span class="sd">        :param train_data: Optional training data of atbitrary type</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span> <span class="o">=</span> <span class="n">train_data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_words</span> <span class="o">=</span> <span class="n">words</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">words</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Mutation of the lexicon is unwanted and unneeded, unless explicitly demanded.</span>
+<span class="sd">        Hence we prohibit direct references.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_words</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Estimator.estimate"><a class="viewcode-back" href="../../../src.estimation.base.html#src.estimation.base.Estimator.estimate">[docs]</a>    <span class="k">def</span> <span class="nf">estimate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This method shall estimate the nearest PHOC</span>
+
+<span class="sd">        :param query: Representation of attributes (e.g. PHOC/ Neural Codes)</span>
+<span class="sd">        :return: Nearest PHOC of lexicon (self._words) and its index in that order</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">measures</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_of_measure</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">query</span><span class="p">]),</span> <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">measures</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="n">idx</span></div>
+
+<div class="viewcode-block" id="Estimator.process_of_measure"><a class="viewcode-back" href="../../../src.estimation.base.html#src.estimation.base.Estimator.process_of_measure">[docs]</a>    <span class="k">def</span> <span class="nf">process_of_measure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">compare</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The underlying process of measure.</span>
+
+<span class="sd">        :param X: set of vector to measure comparison for</span>
+<span class="sd">        :param compare: attribute vectors to compare to</span>
+<span class="sd">        :return: values representing how much the i-th instance of X is alike any vector in compare</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&#39;process_of_measure has not been implemented yet&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Estimator.retrieval_list"><a class="viewcode-back" href="../../../src.estimation.base.html#src.estimation.base.Estimator.retrieval_list">[docs]</a>    <span class="k">def</span> <span class="nf">retrieval_list</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">vecs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculating the retrieval list, accoring to the process of measure</span>
+
+<span class="sd">        :param query: query</span>
+<span class="sd">        :param vecs: attribute vecotrs</span>
+<span class="sd">        :return: retrieval list indices</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">measures</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_of_measure</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">vecs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">measures</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Estimator.est_word"><a class="viewcode-back" href="../../../src.estimation.base.html#src.estimation.base.Estimator.est_word">[docs]</a>    <span class="k">def</span> <span class="nf">est_word</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This method shall be used when you desire to estimate the word of a single query.</span>
+<span class="sd">        Use :meth:`src.estimation.base.Estimator.estimate_set` when processing large queries, as that method shall be</span>
+<span class="sd">        optimised, regarding runtime.</span>
+
+<span class="sd">        :param query: Representation of attributes (e.g. Attribute Vector/ Neural Codes)</span>
+<span class="sd">        :return: Respective word of nearest PHOC, according to the estimator</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">phoc</span><span class="p">,</span> <span class="n">idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">estimate</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">words</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="Estimator.save"><a class="viewcode-back" href="../../../src.estimation.base.html#src.estimation.base.Estimator.save">[docs]</a>    <span class="k">def</span> <span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">dir</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s">&#39;estimator&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This method pikles the estimator.</span>
+<span class="sd">        NOTE: Pre-existing data/ estimators will NOT be overwritten. Please clean up outdated estimators manually.</span>
+
+<span class="sd">        :param dir: directory to pikle</span>
+<span class="sd">        :param name: name of the file</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">dir</span> <span class="o">=</span> <span class="n">sanity_util</span><span class="o">.</span><span class="n">safe_dir_path</span><span class="p">(</span><span class="nb">dir</span><span class="p">)</span>
+        <span class="n">file_name</span> <span class="o">=</span> <span class="n">sanity_util</span><span class="o">.</span><span class="n">unique_file_name</span><span class="p">(</span><span class="nb">dir</span><span class="o">=</span><span class="nb">dir</span><span class="p">,</span> <span class="n">fn</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">suffix</span><span class="o">=</span><span class="s">&#39;.pkl&#39;</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file_name</span><span class="p">,</span> <span class="s">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f_out</span><span class="p">:</span>
+            <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f_out</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Estimator.estimate_set"><a class="viewcode-back" href="../../../src.estimation.base.html#src.estimation.base.Estimator.estimate_set">[docs]</a>    <span class="k">def</span> <span class="nf">estimate_set</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Estimation of all queries in set X.</span>
+<span class="sd">        This method shall be implemented in all subclasses, using a wrapped C-code when possible, as it greatly affects</span>
+<span class="sd">        the runtime of your evaluation.</span>
+
+<span class="sd">        :param X: Set of estimated attribute representations (e.g. PHOC, Neural Codes), with shape (n_samples, dim_phoc)</span>
+<span class="sd">        :return: Respective estimated words, with shape (n_samples,)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ests</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">est_word</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">X</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ests</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Estimator.n_neighbour"><a class="viewcode-back" href="../../../src.estimation.base.html#src.estimation.base.Estimator.n_neighbour">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">n_neighbour</span><span class="p">(</span><span class="n">attr_vec</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">space</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">metric</span><span class="p">:</span> <span class="n">Metrices</span><span class="o">.</span><span class="n">COSINE</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Nearest neighbour search of an attribute vector in a matrix of vectors</span>
+
+<span class="sd">        :param attr_vec: Representation of attributes (e.g. PHOC/ Neural Codes)</span>
+<span class="sd">        :param space: Vector space</span>
+<span class="sd">        :param metric: Enum :class:`src.estimation.base.Metrices` value of the metric used for distance</span>
+<span class="sd">        :return: Nearest vector of the vector space and its respective index</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># parsing enum to input string of cdist (using an enum, to ensure metrices are in the desired st of fucntions)</span>
+        <span class="k">if</span> <span class="n">metric</span> <span class="o">==</span> <span class="n">Metrices</span><span class="o">.</span><span class="n">MAHALANOBIS</span><span class="p">:</span>
+            <span class="n">str_metric</span> <span class="o">=</span> <span class="s">&#39;mah&#39;</span>
+        <span class="k">elif</span> <span class="n">metric</span> <span class="o">==</span> <span class="n">Metrices</span><span class="o">.</span><span class="n">EUCLIDEAN</span><span class="p">:</span>
+            <span class="n">str_metric</span> <span class="o">=</span> <span class="s">&#39;euclidean&#39;</span>
+        <span class="k">elif</span> <span class="n">metric</span> <span class="o">==</span> <span class="n">Metrices</span><span class="o">.</span><span class="n">COSINE</span><span class="p">:</span>
+            <span class="n">str_metric</span> <span class="o">=</span> <span class="s">&#39;cosine&#39;</span>
+        <span class="c"># default metric shall be the cosine distance</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">str_metric</span> <span class="o">=</span> <span class="s">&#39;cosine&#39;</span>
+        <span class="c"># usign scipys cdist for faster runtime</span>
+        <span class="n">dists</span> <span class="o">=</span> <span class="n">cdist</span><span class="p">([</span><span class="n">attr_vec</span><span class="p">],</span> <span class="n">space</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="n">str_metric</span><span class="p">)</span>
+        <span class="n">idx_nn</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">dists</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">space</span><span class="p">[</span><span class="n">idx_nn</span><span class="p">],</span> <span class="n">idx_nn</span></div></div>
+
+
+<div class="viewcode-block" id="DistEstimator"><a class="viewcode-back" href="../../../src.estimation.base.html#src.estimation.base.DistEstimator">[docs]</a><span class="k">class</span> <span class="nc">DistEstimator</span><span class="p">(</span><span class="n">Estimator</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A DistEstimator shall perform a nn search, with respect to a metric.</span>
+<span class="sd">    Distance estimators are of almost identical behaviour. Their only hyper-parameter is the metric used.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">words</span><span class="p">,</span> <span class="n">metric</span><span class="p">,</span> <span class="n">phoc_level</span><span class="o">=</span><span class="n">phoc_util</span><span class="o">.</span><span class="n">DEFAULT_PHOC_LEVELS</span><span class="p">,</span>
+                 <span class="n">alphabet</span><span class="o">=</span><span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_LOWER</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_DIGITS</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_PUNCTUATION</span><span class="p">],</span> <span class="n">unambiguous</span><span class="o">=</span><span class="k">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Much like the generic Estimator, the distance estimator requires a lexicon of words, yet it operates on the</span>
+<span class="sd">        respective PHOC and requires no training data.</span>
+
+<span class="sd">        :param words: List of words/ lexicon</span>
+<span class="sd">        :param metric: Metric used for nn search</span>
+<span class="sd">        :param phoc_level: Number of levels in PHOC</span>
+<span class="sd">        :param alphabet: Alphabet used for PHOC</span>
+<span class="sd">        :param unambiguous: PHOC can be identical, this parameter indicates the discarding of ambbiguous PHOC in a</span>
+<span class="sd">                            deterministic manner</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__phoc_level</span> <span class="o">=</span> <span class="n">phoc_level</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__alphabet</span> <span class="o">=</span> <span class="n">alphabet</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__words</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ambiguous</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_metric</span> <span class="o">=</span> <span class="n">metric</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unambiguous</span> <span class="o">=</span> <span class="n">unambiguous</span>
+        <span class="c"># CAUTION setting word requires other global attributes to be set already</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">words</span> <span class="o">=</span> <span class="n">words</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">words</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__words</span><span class="p">)</span>
+
+    <span class="nd">@words</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">words</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_words</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Setting the lexicon requires calculating the respective PHOC.</span>
+<span class="sd">        As this estimator is solely based on the distances to the lexicons PHOC, we have to ensure their sanity</span>
+<span class="sd">        and warn, if impurities should occur.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            self.ambiguous contains problematic words.</span>
+
+<span class="sd">        :param new_words: New lexicon</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># updating the lexicon</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__words</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">new_words</span><span class="p">)))</span>
+        <span class="c"># updating the PHOC</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span> <span class="o">=</span> <span class="p">[</span><span class="n">phoc_util</span><span class="o">.</span><span class="n">phoc</span><span class="p">(</span><span class="n">word</span><span class="o">=</span><span class="n">w</span><span class="p">,</span> <span class="n">alphabet</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">__alphabet</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">__phoc_level</span><span class="p">)</span>
+                      <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__words</span><span class="p">]</span>
+        <span class="c"># eliminating zero PHOC vectors (those would inherently be the nearest neighbour for the cosine distance and we</span>
+        <span class="c"># we shall only  consider words that we can generate a representation for)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">phoc</span><span class="p">)</span>
+        <span class="n">sums</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">sums</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s">&#39;{} zero phocs</span><span class="se">\n</span><span class="s">{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">((</span><span class="n">sums</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">__words</span><span class="p">[</span><span class="n">sums</span><span class="o">==</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span><span class="p">[</span><span class="n">sums</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__words</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__words</span><span class="p">[</span><span class="n">sums</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="c"># checking for ambiguous PHOC and warn</span>
+        <span class="n">same_taken</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">phoc</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">same_pairs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">same</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">phoc</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">zs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+            <span class="n">tail</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">all</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:])))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+            <span class="n">tmp_same</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">zs</span><span class="p">,</span> <span class="n">tail</span><span class="p">])</span>
+            <span class="n">tmp_same</span> <span class="o">-=</span> <span class="n">same_taken</span>
+            <span class="n">tmp_same</span><span class="p">[</span><span class="n">tmp_same</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="c"># pairs of words with identical PHOC</span>
+            <span class="k">if</span> <span class="n">tmp_same</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">same</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">same_pairs</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">__words</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">__words</span><span class="p">[</span><span class="n">tmp_same</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">)]))</span>
+            <span class="n">same_taken</span> <span class="o">+=</span> <span class="n">tmp_same</span>
+            <span class="n">same_taken</span><span class="p">[</span><span class="n">same_taken</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="c"># gathering ambiguous PHOC</span>
+        <span class="k">if</span> <span class="n">same</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s">&#39;{} same phocs out of {}</span><span class="se">\n</span><span class="s">{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">same</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">phoc</span><span class="p">),</span> <span class="n">same_pairs</span><span class="p">))</span>
+        <span class="c"># gathering ambiguous words, if this set is to large, you might want to use deeper PHOC (more levels)</span>
+        <span class="k">for</span> <span class="n">w</span><span class="p">,</span> <span class="n">pair</span> <span class="ow">in</span> <span class="n">same_pairs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ambiguous</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">pair</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ambiguous</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ambiguous</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ambiguous</span><span class="p">))</span>
+        <span class="c"># discarding unambiguous PHOC if desired</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unambiguous</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__words</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__words</span><span class="p">[</span><span class="o">~</span><span class="n">same_taken</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">)]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span><span class="p">[</span><span class="o">~</span><span class="n">same_taken</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">)]</span>
+
+<div class="viewcode-block" id="DistEstimator.dists"><a class="viewcode-back" href="../../../src.estimation.base.html#src.estimation.base.DistEstimator.dists">[docs]</a>    <span class="k">def</span> <span class="nf">dists</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Wrapping the cdist function, to ensure it is called correctly, with respect to this estimators metric</span>
+
+<span class="sd">        :param query: query of attribute representations</span>
+<span class="sd">        :return: distances to the lexicons respective PHOC</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_of_measure</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="DistEstimator.process_of_measure"><a class="viewcode-back" href="../../../src.estimation.base.html#src.estimation.base.DistEstimator.process_of_measure">[docs]</a>    <span class="k">def</span> <span class="nf">process_of_measure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">compare</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cdist</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">compare</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_metric</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="DistEstimator.estimate"><a class="viewcode-back" href="../../../src.estimation.base.html#src.estimation.base.DistEstimator.estimate">[docs]</a>    <span class="k">def</span> <span class="nf">estimate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">):</span>
+        <span class="c"># distances to all queries</span>
+        <span class="n">dists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dists</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+        <span class="c"># nearest neighbour</span>
+        <span class="n">argmin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">dists</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">dists</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">argmin</span><span class="p">],</span> <span class="n">argmin</span></div>
+
+<div class="viewcode-block" id="DistEstimator.estimate_set"><a class="viewcode-back" href="../../../src.estimation.base.html#src.estimation.base.DistEstimator.estimate_set">[docs]</a>    <span class="k">def</span> <span class="nf">estimate_set</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">):</span>
+        <span class="c"># calculating distances to all of the lexicons respective PHOC</span>
+        <span class="n">dists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dists</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="c"># nearest neighbours, i.e. minima per row</span>
+        <span class="n">idcs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">dists</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="c"># gather estimated words</span>
+        <span class="n">W_est</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">__words</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">idcs</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">W_est</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+      <div class="relbar-bottom">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+      <li><a href="../../../index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Maximilian Rüdiger Springenberg.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.3.0.
+    </div>
+      <!-- PSphinxTheme -->
+  </body>
+</html>

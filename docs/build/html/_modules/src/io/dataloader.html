@@ -1,0 +1,1092 @@
+
+
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>src.io.dataloader &#8212; Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</title>
+    <link rel="stylesheet" href="../../../_static/p_sphinx_theme.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/local_fonts.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/javascript" src="../../../_static/jquery.cookie.js"></script>
+    <script type="text/javascript" src="../../../_static/p_sphinx_theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head><body>
+      <div class="relbar-top">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+      <li><a href="../../../index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for src.io.dataloader</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains the Dataset-adapters for all relevant datasets</span>
+
+<span class="sd">.. moduleauthor:: Maximilian Springenberg &lt;mspringenberg@gmail.com&gt;</span>
+
+<span class="sd">|</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="c"># extended base-libraries</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">deepcopy</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span>
+<span class="kn">from</span> <span class="nn">enum</span> <span class="k">import</span> <span class="n">Enum</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">List</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="c"># libraries</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">csv</span>
+<span class="kn">import</span> <span class="nn">random</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">PIL</span> <span class="k">import</span> <span class="n">Image</span>
+<span class="c"># pytorch relevant imports</span>
+<span class="kn">from</span> <span class="nn">torch.utils.data</span> <span class="k">import</span> <span class="n">Dataset</span>
+<span class="c"># own code</span>
+<span class="kn">from</span> <span class="nn">src.util</span> <span class="k">import</span> <span class="n">phoc_util</span>
+<span class="kn">from</span> <span class="nn">src.util.phoc_util</span> <span class="k">import</span> <span class="n">Alphabet</span>
+<span class="kn">from</span> <span class="nn">src.util</span> <span class="k">import</span> <span class="n">augmentation_util</span>
+
+
+<span class="c"># directory of this file</span>
+<span class="n">FILE_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">__file__</span><span class="p">))</span>
+<span class="c"># representation string of DSetQuant instances</span>
+<span class="n">REP_STRS</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;eq&#39;</span><span class="p">,</span> <span class="s">&#39;resp&#39;</span><span class="p">,</span> <span class="s">&#39;rand&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="DSetQuant"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetQuant">[docs]</a><span class="k">class</span> <span class="nc">DSetQuant</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Enumeration of different quantification approaches, regarding the augmentation of a dataset.&quot;&quot;&quot;</span>
+    <span class="n">RANDOM</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">EQUAL</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">RESPECTIVE</span> <span class="o">=</span> <span class="mi">3</span></div>
+
+
+<div class="viewcode-block" id="quant_to_rep"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.quant_to_rep">[docs]</a><span class="k">def</span> <span class="nf">quant_to_rep</span><span class="p">(</span><span class="n">quant</span><span class="p">:</span> <span class="n">DSetQuant</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;parsing an enum instance of :class:`DSetQuant` to a representation string&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">quant</span> <span class="o">==</span> <span class="n">DSetQuant</span><span class="o">.</span><span class="n">EQUAL</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&#39;eq&#39;</span>
+    <span class="k">if</span> <span class="n">quant</span> <span class="o">==</span> <span class="n">DSetQuant</span><span class="o">.</span><span class="n">RESPECTIVE</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&#39;resp&#39;</span>
+    <span class="k">if</span> <span class="n">quant</span> <span class="o">==</span> <span class="n">DSetQuant</span><span class="o">.</span><span class="n">RANDOM</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&#39;rand&#39;</span>
+    <span class="k">return</span> <span class="k">None</span></div>
+
+
+<div class="viewcode-block" id="rep_to_quant"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.rep_to_quant">[docs]</a><span class="k">def</span> <span class="nf">rep_to_quant</span><span class="p">(</span><span class="n">rep</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;parsing a representation string to an enum instance of :class:`DSetQuant`&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">rep</span> <span class="o">==</span> <span class="s">&#39;eq&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">DSetQuant</span><span class="o">.</span><span class="n">EQUAL</span>
+    <span class="k">if</span> <span class="n">rep</span> <span class="o">==</span> <span class="s">&#39;resp&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">DSetQuant</span><span class="o">.</span><span class="n">RESPECTIVE</span>
+    <span class="k">if</span> <span class="n">rep</span> <span class="o">==</span> <span class="s">&#39;rand&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">DSetQuant</span><span class="o">.</span><span class="n">RANDOM</span>
+    <span class="k">return</span> <span class="k">None</span></div>
+
+
+<div class="viewcode-block" id="DSetPhoc"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc">[docs]</a><span class="k">class</span> <span class="nc">DSetPhoc</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base-class for a dataset-adapter dealing with PHOC encodings, comes with a set of words and display method.</span>
+<span class="sd">    Subclasses do not need to write the __getitem__ method **if self.table is a DataFrame with the following collumns**:</span>
+
+<span class="sd">        * bbox: x0,y0,x1,y1 -&gt; bounding box of image</span>
+<span class="sd">        * form_path: path to page / image of origin</span>
+<span class="sd">        * transcription: the word-imgs transcription</span>
+<span class="sd">        * word_id: an unique id for the word (usefull for debugging)</span>
+
+<span class="sd">    |</span>
+
+<span class="sd">    The __getitem__ method then returns a dictionary:</span>
+
+<span class="sd">        * bbox: bbox of word in form</span>
+<span class="sd">        * img: word_img (e.g. augmented, if augment_imgs is True)</span>
+<span class="sd">        * non_aug_img: none-augmented image (optional, if augment_imgs is True)</span>
+<span class="sd">        * transcription: transcription of the image</span>
+<span class="sd">        * phoc: PHOC-encoding of the transcription</span>
+<span class="sd">        * word_id: an unique id for the word (usefull for debugging)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alphabet</span><span class="o">=</span><span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_LOWER</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_DIGITS</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_PUNCTUATION</span><span class="p">],</span>
+                 <span class="n">phoc_levels</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">augment_imgs</span><span class="o">=</span><span class="k">True</span><span class="p">,</span> <span class="n">lower_case</span><span class="o">=</span><span class="k">True</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="p">(</span><span class="k">None</span><span class="p">,</span> <span class="k">None</span><span class="p">)):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">=</span> <span class="n">scale</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">.</span><span class="n">from_dict</span><span class="p">({})</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alphabet</span> <span class="o">=</span> <span class="n">alphabet</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phoc_levels</span> <span class="o">=</span> <span class="n">phoc_levels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">form_imgs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lazy_loading</span> <span class="o">=</span> <span class="k">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trans_idcs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">augment_imgs</span> <span class="o">=</span> <span class="n">augment_imgs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lower_case</span> <span class="o">=</span> <span class="n">lower_case</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">words</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :return: sorted set of word classes in this dataset</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">word_list</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">word_list</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :return: list of words/ transciptions in this dataset</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">transcript</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">))]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">phoc_list</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :return: list of PHOC in this dataset</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">phoc_util</span><span class="o">.</span><span class="n">phoc</span><span class="p">(</span><span class="n">word</span><span class="o">=</span><span class="n">word</span><span class="p">,</span> <span class="n">alphabet</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">alphabet</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">phoc_levels</span><span class="p">)</span> <span class="k">for</span> <span class="n">word</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">word_list</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">bbox_list</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :return: list of bounding boxes in this dataset</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="p">[</span><span class="s">&#39;bbox&#39;</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">form_path_list</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :return: list of form-/ image paths in this dataset</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="p">[</span><span class="s">&#39;form_path&#39;</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ids</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :return: list of ids in this dataset</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">))]</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param idx: index of item</span>
+<span class="sd">        :return: dictionary containing:</span>
+<span class="sd">            * bbox: bbox of word in form</span>
+<span class="sd">            * img: word_img</span>
+<span class="sd">            * transcription: transcription of the image</span>
+<span class="sd">            * phoc: PHOC-encoding of the transcription</span>
+<span class="sd">            * word_id: an unique id for the word (usefull in debugging / problems with the Model, but no specific use)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ret_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="n">ret_dict</span><span class="p">[</span><span class="s">&#39;bbox&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bbox</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+        <span class="n">word_img</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">img</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">augment_imgs</span><span class="p">:</span>
+            <span class="n">ret_dict</span><span class="p">[</span><span class="s">&#39;non_aug_img&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">word_img</span><span class="p">)</span>
+            <span class="n">word_img</span> <span class="o">=</span> <span class="n">augmentation_util</span><span class="o">.</span><span class="n">homography_augm</span><span class="p">(</span><span class="n">word_img</span><span class="p">)</span>
+        <span class="n">ret_dict</span><span class="p">[</span><span class="s">&#39;img&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">word_img</span>
+        <span class="n">ret_dict</span><span class="p">[</span><span class="s">&#39;form&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">form</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+        <span class="n">ret_dict</span><span class="p">[</span><span class="s">&#39;transcript&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+        <span class="n">ret_dict</span><span class="p">[</span><span class="s">&#39;phoc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">phoc</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+        <span class="n">ret_dict</span><span class="p">[</span><span class="s">&#39;word_id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret_dict</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="p">)</span>
+
+<div class="viewcode-block" id="DSetPhoc.apply_alphabet"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.apply_alphabet">[docs]</a>    <span class="k">def</span> <span class="nf">apply_alphabet</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alphabet</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Alphabet</span><span class="p">]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        makes the dataset fit the alphabet</span>
+
+<span class="sd">        :param alphabet: list of alphabet properties</span>
+<span class="sd">        :return: alternated dataset</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">alphabet</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s">&#39;empty alphabet&#39;</span><span class="p">)</span>
+        <span class="n">dset</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="c"># setting lower-case</span>
+        <span class="n">dset</span><span class="o">.</span><span class="n">lower_case</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">needs_lower</span><span class="p">(</span><span class="n">alphabet</span><span class="p">)</span>
+        <span class="c"># no more punctuation</span>
+        <span class="k">if</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_PUNCTUATION</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">:</span>
+            <span class="n">dset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exclude_words</span><span class="p">(</span><span class="n">phoc_util</span><span class="o">.</span><span class="n">alphabet_chars</span><span class="p">([</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_PUNCTUATION</span><span class="p">]))</span>
+        <span class="c"># no more digits</span>
+        <span class="k">if</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_DIGITS</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">:</span>
+            <span class="n">exclude</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">words</span><span class="p">:</span>
+                <span class="n">take</span> <span class="o">=</span> <span class="k">False</span>
+                <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="s">&#39;0123456789&#39;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">w</span><span class="p">:</span>
+                        <span class="n">take</span> <span class="o">=</span> <span class="k">True</span>
+                        <span class="k">break</span>
+                <span class="k">if</span> <span class="n">take</span><span class="p">:</span>
+                    <span class="n">exclude</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
+            <span class="n">dset</span> <span class="o">=</span> <span class="n">dset</span><span class="o">.</span><span class="n">exclude_words</span><span class="p">(</span><span class="n">exclude</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">dset</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.needs_lower"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.needs_lower">[docs]</a>    <span class="k">def</span> <span class="nf">needs_lower</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alphabet</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Alphabet</span><span class="p">]):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_UPPER</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.transcript_idcs"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.transcript_idcs">[docs]</a>    <span class="k">def</span> <span class="nf">transcript_idcs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transcript</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        searches for items with the same transcription in this dataset</span>
+
+<span class="sd">        :param transcript: transcript of a word</span>
+<span class="sd">        :return: indices of occurences in this dataset</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># cached idcs</span>
+        <span class="k">if</span> <span class="n">transcript</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">trans_idcs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">trans_idcs</span><span class="p">[</span><span class="n">transcript</span><span class="p">]</span>
+        <span class="c"># calculate</span>
+        <span class="n">trans_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">word_list</span><span class="p">)</span>
+        <span class="n">is_word_arr</span> <span class="o">=</span> <span class="p">(</span><span class="n">trans_arr</span> <span class="o">==</span> <span class="n">transcript</span><span class="p">)</span>
+        <span class="n">idcs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">is_word</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">is_word_arr</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">is_word</span><span class="p">:</span>
+                <span class="n">idcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+        <span class="c"># cache idcs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trans_idcs</span><span class="p">[</span><span class="n">transcript</span><span class="p">]</span> <span class="o">=</span> <span class="n">idcs</span>
+        <span class="k">return</span> <span class="n">idcs</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.exclude_words"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.exclude_words">[docs]</a>    <span class="k">def</span> <span class="nf">exclude_words</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">words</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        excluding all instances of transcriptions in words from the dataset</span>
+
+<span class="sd">        :param words: iterable containing excluded tarnscriptions</span>
+<span class="sd">        :return: subset without excluded words</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">idcs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">in</span> <span class="n">words</span><span class="p">:</span>
+                <span class="n">idcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="n">subset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sub_set</span><span class="p">(</span><span class="n">idcs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">subset</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.bbox"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.bbox">[docs]</a>    <span class="k">def</span> <span class="nf">bbox</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        bounding box for item at index idx</span>
+
+<span class="sd">        :param idx: index of item</span>
+<span class="sd">        :return: respective bounding box x0,y0, x1,y1</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+        <span class="n">bbox</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s">&#39;bbox&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">bbox</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.img"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.img">[docs]</a>    <span class="k">def</span> <span class="nf">img</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        image for item at index. NOTE: image is allways unaugmented. Augmentation happends in the __getitem__ method.</span>
+<span class="sd">        (see also :func:`src.util.augmentation_util.homography_augm` for augmentation)</span>
+
+<span class="sd">        :param idx: index of item</span>
+<span class="sd">        :return: respective image</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># bbox</span>
+        <span class="n">bbox</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bbox</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+        <span class="n">form_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">form</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+        <span class="c"># form</span>
+        <span class="k">if</span> <span class="n">form_path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">form_imgs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">Image</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">form_path</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">form_imgs</span><span class="p">[</span><span class="n">form_path</span><span class="p">]</span> <span class="o">=</span> <span class="n">img</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">img</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">form_imgs</span><span class="p">[</span><span class="n">form_path</span><span class="p">]</span>
+        <span class="c"># not storing too many images at once</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">form_imgs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">:</span>
+            <span class="n">keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">form_imgs</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+            <span class="n">del_k</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">form_imgs</span><span class="p">[</span><span class="n">del_k</span><span class="p">]</span>
+        <span class="c"># cutout word-img</span>
+        <span class="n">word_img</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">norm_img</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bbox_img</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">bbox</span><span class="p">))</span>
+        <span class="n">word_img</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inv_img</span><span class="p">(</span><span class="n">word_img</span><span class="p">)</span>
+        <span class="n">word_img</span> <span class="o">=</span> <span class="n">augmentation_util</span><span class="o">.</span><span class="n">scale</span><span class="p">(</span><span class="n">word_img</span><span class="p">,</span> <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">word_img</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.form"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.form">[docs]</a>    <span class="k">def</span> <span class="nf">form</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        the images from</span>
+
+<span class="sd">        :param idx: index of item</span>
+<span class="sd">        :return: path to the images form</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+        <span class="n">form_path</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s">&#39;form_path&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">form_path</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.transcript"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.transcript">[docs]</a>    <span class="k">def</span> <span class="nf">transcript</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        transcription of item</span>
+
+<span class="sd">        :param idx: index of item</span>
+<span class="sd">        :return: respective transcription</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+        <span class="n">transcript</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s">&#39;transcription&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower_case</span><span class="p">:</span>
+            <span class="n">transcript</span> <span class="o">=</span> <span class="n">transcript</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">transcript</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.phoc"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.phoc">[docs]</a>    <span class="k">def</span> <span class="nf">phoc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generates the PHOC. The PHOC depends on the global variables self.alphabet, self.phoc_levels.</span>
+<span class="sd">        (see also :func:`src.util.phoc_util.phoc`)</span>
+
+<span class="sd">        :param idx: indesx of item</span>
+<span class="sd">        :return: respective PHOC</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">transcript</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+        <span class="n">phoc</span> <span class="o">=</span> <span class="n">phoc_util</span><span class="o">.</span><span class="n">phoc</span><span class="p">(</span><span class="n">transcript</span><span class="p">,</span> <span class="n">alphabet</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">alphabet</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">phoc_levels</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">phoc</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.id"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.id">[docs]</a>    <span class="k">def</span> <span class="nf">id</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Unique ID of an item. Sometimes provided by the database, otherwise it should be the index.</span>
+
+<span class="sd">        :param idx: index of item</span>
+<span class="sd">        :return: respective id</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+        <span class="n">word_id</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s">&#39;word_id&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">word_id</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.display"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.display">[docs]</a>    <span class="k">def</span> <span class="nf">display</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Displaying image at certaint index</span>
+
+<span class="sd">        :param index: index of image to be displayed</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">img</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">img</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+        <span class="n">transcription</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">norm_img</span><span class="p">(</span><span class="n">img</span><span class="p">),</span> <span class="n">cmap</span><span class="o">=</span><span class="s">&#39;bone&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="n">transcription</span><span class="p">,</span> <span class="n">fontdict</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;fontsize&#39;</span><span class="p">:</span> <span class="mi">64</span><span class="p">})</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.sub_set"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.sub_set">[docs]</a>    <span class="k">def</span> <span class="nf">sub_set</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idcs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generates subset of this set, containing only the items with respective indices in idcs</span>
+
+<span class="sd">        :param idcs: idcs of selected items</span>
+<span class="sd">        :return: SubSet object containing the selected items</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">SubSet</span><span class="p">(</span><span class="n">dset</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">idcs</span><span class="o">=</span><span class="n">idcs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.cls_to_idcs"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.cls_to_idcs">[docs]</a>    <span class="k">def</span> <span class="nf">cls_to_idcs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c"># class to idcs of occurrences</span>
+        <span class="n">cls_to_idcs</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="c"># indices of new augmented set</span>
+        <span class="n">idcs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c"># fillling classes dict, searching for occurrences</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)):</span>
+            <span class="n">itm</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">transcription</span> <span class="o">=</span> <span class="n">itm</span><span class="p">[</span><span class="s">&#39;transcript&#39;</span><span class="p">]</span>
+            <span class="n">cls_to_idcs</span><span class="p">[</span><span class="n">transcription</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cls_to_idcs</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.augment"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.augment">[docs]</a>    <span class="k">def</span> <span class="nf">augment</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">500000</span><span class="p">,</span> <span class="n">t_quant</span><span class="o">=</span><span class="n">DSetQuant</span><span class="o">.</span><span class="n">EQUAL</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Augmentation of the dataset</span>
+
+<span class="sd">        :param size: new size auf augmented dataset</span>
+<span class="sd">        :param t_quant: type of quantification, regarding the word classes.</span>
+<span class="sd">                        (see also :class:`src.io.dataloader.DSetQuant`)</span>
+<span class="sd">        :return: augmented dataset</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">words</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">words</span><span class="p">)</span>
+        <span class="c"># sanity</span>
+        <span class="k">if</span> <span class="n">size</span> <span class="o">&gt;</span> <span class="n">N</span><span class="p">:</span>
+            <span class="c"># euqal distribution =&gt; all word classes shall have the same number of occurences</span>
+            <span class="k">if</span> <span class="n">t_quant</span> <span class="o">==</span> <span class="n">DSetQuant</span><span class="o">.</span><span class="n">EQUAL</span><span class="p">:</span>
+                <span class="c"># class to idcs of occurrences</span>
+                <span class="n">classes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cls_to_idcs</span><span class="p">()</span>
+                <span class="c"># iteration index of respectiv class</span>
+                <span class="n">class_iter_idx</span> <span class="o">=</span> <span class="p">{</span><span class="n">w</span><span class="p">:</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">words</span><span class="p">}</span>
+                <span class="c"># indices of new augmented set</span>
+                <span class="n">idcs</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="c"># word classes</span>
+                <span class="n">keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">classes</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+                <span class="n">k_idx</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="c"># collecting samples, iterating word classes</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
+                    <span class="n">k</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="n">k_idx</span><span class="p">]</span>
+                    <span class="n">idx</span> <span class="o">=</span> <span class="n">class_iter_idx</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+                    <span class="n">idcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">classes</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="n">idx</span><span class="p">])</span>
+                    <span class="n">class_iter_idx</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">idx</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">classes</span><span class="p">[</span><span class="n">k</span><span class="p">])</span>
+                    <span class="n">k_idx</span> <span class="o">=</span> <span class="p">(</span><span class="n">k_idx</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>
+            <span class="c"># respective distribution (to original dataset)</span>
+            <span class="k">elif</span> <span class="n">t_quant</span> <span class="o">==</span> <span class="n">DSetQuant</span><span class="o">.</span><span class="n">RESPECTIVE</span><span class="p">:</span>
+                <span class="n">idcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="n">N</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">size</span><span class="p">)]</span>
+            <span class="c"># binomial (random) distribution</span>
+            <span class="k">elif</span> <span class="n">t_quant</span> <span class="o">==</span> <span class="n">DSetQuant</span><span class="o">.</span><span class="n">RANDOM</span><span class="p">:</span>
+                <span class="c"># indices of respective word classes</span>
+                <span class="n">cls_idcs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">words</span><span class="p">)))</span>
+                <span class="c"># random selection of word classes</span>
+                <span class="n">slctd_cls_idcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">random</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">cls_idcs</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">size</span><span class="p">)]</span>
+                <span class="c"># class to idcs of occurrences</span>
+                <span class="n">classes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cls_to_idcs</span><span class="p">()</span>
+                <span class="c"># iteration index of respectiv class</span>
+                <span class="n">class_iter_idx</span> <span class="o">=</span> <span class="p">{</span><span class="n">w</span><span class="p">:</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">words</span><span class="p">}</span>
+                <span class="c"># collecting indices of samples</span>
+                <span class="n">idcs</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">cls_idx</span> <span class="ow">in</span> <span class="n">slctd_cls_idcs</span><span class="p">:</span>
+                    <span class="n">w</span> <span class="o">=</span> <span class="n">words</span><span class="p">[</span><span class="n">cls_idx</span><span class="p">]</span>
+                    <span class="n">idx</span> <span class="o">=</span> <span class="n">class_iter_idx</span><span class="p">[</span><span class="n">w</span><span class="p">]</span>
+                    <span class="n">idcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">classes</span><span class="p">[</span><span class="n">w</span><span class="p">][</span><span class="n">idx</span><span class="p">])</span>
+                    <span class="n">class_iter_idx</span><span class="p">[</span><span class="n">w</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">idx</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">classes</span><span class="p">[</span><span class="n">w</span><span class="p">])</span>
+            <span class="c"># sanity</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s">&#39;quantification unknown: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">t_quant</span><span class="p">))</span>
+        <span class="c"># sanity</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">idcs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">))</span>
+        <span class="c"># generating a DataFrame from collected indices</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">idcs</span><span class="p">:</span>
+            <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">row</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">table</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">k</span><span class="p">])</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
+        <span class="c"># generating the augmented dataset</span>
+        <span class="n">augmented_set</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">augmented_set</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="n">table</span>
+        <span class="n">augmented_set</span><span class="o">.</span><span class="n">idcs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">augmented_set</span><span class="p">)))</span>
+        <span class="n">augmented_set</span><span class="o">.</span><span class="n">augment_imgs</span> <span class="o">=</span> <span class="k">True</span>
+        <span class="k">return</span> <span class="n">augmented_set</span></div>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">__equal_dist_idcs</span><span class="p">(</span><span class="n">transcriptions</span><span class="p">,</span> <span class="n">n_items</span><span class="p">):</span>
+        <span class="c"># storing idcs by their transcription</span>
+        <span class="n">trans_to_idcs</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="n">not_taken</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">trans</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">transcriptions</span><span class="p">):</span>
+            <span class="n">trans_to_idcs</span><span class="p">[</span><span class="n">trans</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="n">not_taken</span><span class="p">[</span><span class="n">trans</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="k">True</span><span class="p">)</span>
+        <span class="c"># equal amount of all Transcription</span>
+        <span class="n">idcs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">n_items</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">n_items</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">transcriptions</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">trans_to_idcs</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="n">idx_k</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="c"># collecting idcs</span>
+        <span class="k">while</span> <span class="n">n_items</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c"># choosing transcript</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="n">idx_k</span><span class="p">]</span>
+            <span class="c"># checking if there are idcs left to take</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">not_taken</span><span class="p">[</span><span class="n">key</span><span class="p">]):</span>
+                <span class="c"># choosing one idx at random</span>
+                <span class="n">arr</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">trans_idx</span><span class="p">,</span> <span class="n">n_taken</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">trans_to_idcs</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="n">not_taken</span><span class="p">[</span><span class="n">key</span><span class="p">]):</span>
+                    <span class="k">if</span> <span class="n">n_taken</span><span class="p">:</span>
+                        <span class="n">arr</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">trans_idx</span><span class="p">)</span>
+                <span class="n">idx</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="c"># marking index as taken</span>
+                <span class="n">taken_idx</span> <span class="o">=</span> <span class="n">trans_to_idcs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+                <span class="n">not_taken</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="n">taken_idx</span><span class="p">]</span> <span class="o">=</span> <span class="k">False</span>
+                <span class="c"># storing index</span>
+                <span class="n">idcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+                <span class="n">n_items</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="c"># iteration of keys -&gt; no overflow</span>
+            <span class="n">idx_k</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">idx_k</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">):</span>
+                <span class="n">idx_k</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">return</span> <span class="n">idcs</span>
+
+<div class="viewcode-block" id="DSetPhoc.norm_img"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.norm_img">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">norm_img</span><span class="p">(</span><span class="n">img</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        normalizing image for better visual</span>
+
+<span class="sd">        :param img: image of any type</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">img_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">img</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">max_val</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">amax</span><span class="p">(</span><span class="n">img_arr</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">max_val</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">img_arr</span> <span class="o">/=</span> <span class="n">max_val</span>
+        <span class="k">return</span> <span class="n">img_arr</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.inv_img"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.inv_img">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">inv_img</span><span class="p">(</span><span class="n">img</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;inverts an image with real values in [0,1]&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">img</span> <span class="o">-</span> <span class="mf">1.</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="DSetPhoc.bbox_img"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.DSetPhoc.bbox_img">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">bbox_img</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">bbox</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        extracts infield of image</span>
+
+<span class="sd">        :param img: base image (e.g. page)</span>
+<span class="sd">        :param bbox: bounding box</span>
+<span class="sd">        :return: infield of bounding box</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">img</span><span class="p">[</span><span class="n">bbox</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span><span class="n">bbox</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="n">bbox</span><span class="p">[</span><span class="mi">2</span><span class="p">]]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">img</span></div></div>
+
+
+<div class="viewcode-block" id="SubSet"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.SubSet">[docs]</a><span class="k">class</span> <span class="nc">SubSet</span><span class="p">(</span><span class="n">DSetPhoc</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;allows easy cutting of a dataset via a list of indices&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dset</span><span class="p">:</span> <span class="n">DSetPhoc</span><span class="p">,</span> <span class="n">idcs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="c"># filtering for indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="n">dset</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">idcs</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">idcs</span> <span class="o">=</span> <span class="n">idcs</span>
+        <span class="c"># keeping all other attributes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alphabet</span> <span class="o">=</span> <span class="n">dset</span><span class="o">.</span><span class="n">alphabet</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phoc_levels</span> <span class="o">=</span> <span class="n">dset</span><span class="o">.</span><span class="n">phoc_levels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">form_imgs</span> <span class="o">=</span> <span class="n">dset</span><span class="o">.</span><span class="n">form_imgs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lazy_loading</span> <span class="o">=</span> <span class="n">dset</span><span class="o">.</span><span class="n">lazy_loading</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trans_idcs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">augment_imgs</span> <span class="o">=</span> <span class="n">dset</span><span class="o">.</span><span class="n">augment_imgs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">=</span> <span class="n">dset</span><span class="o">.</span><span class="n">scale</span></div>
+
+
+<div class="viewcode-block" id="IAMDataset"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.IAMDataset">[docs]</a><span class="k">class</span> <span class="nc">IAMDataset</span><span class="p">(</span><span class="n">DSetPhoc</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;pytorch Dataset adapter of the IAM dataset&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s">&#39; &#39;</span><span class="p">,</span> <span class="n">lazy_loading</span><span class="o">=</span><span class="k">True</span><span class="p">,</span> <span class="n">phoc_levels</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">good_segmentation</span><span class="o">=</span><span class="k">False</span><span class="p">,</span> <span class="n">lower_case</span><span class="o">=</span><span class="k">True</span><span class="p">,</span>
+                 <span class="n">alphabet</span><span class="o">=</span><span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_LOWER</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_DIGITS</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_PUNCTUATION</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="p">(</span><span class="k">None</span><span class="p">,</span> <span class="k">None</span><span class="p">),</span>
+                 <span class="n">csvs_path</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s">&#39;/data&#39;</span><span class="p">,</span> <span class="s">&#39;mspringe&#39;</span><span class="p">,</span> <span class="s">&#39;iamDB&#39;</span><span class="p">,</span> <span class="s">&#39;ascii&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">),</span>
+                 <span class="n">imgs_path</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s">&#39;/data&#39;</span><span class="p">,</span> <span class="s">&#39;mspringe&#39;</span><span class="p">,</span> <span class="s">&#39;iamDB&#39;</span><span class="p">,</span> <span class="s">&#39;forms&#39;</span><span class="p">,</span> <span class="s">&#39;png&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param sep: delimiter of the words.txt file</span>
+<span class="sd">        :param lazy_loading: Indicates whether all data shall be loaded at once on construct or it shall be loaded</span>
+<span class="sd">                             &#39;lazy&#39;, when it is needed. default: True</span>
+<span class="sd">        :param phoc_levels: levels of PHOC-Encoding</span>
+<span class="sd">        :param good_segmentation: Filters for &#39;ok&#39; segmentation if set to True. default: False</span>
+<span class="sd">        :param csvs_path: path to the directory of the words.txt file</span>
+<span class="sd">        :param imgs_path: path to the directory, where all forms are stored</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">alphabet</span><span class="o">=</span><span class="n">alphabet</span><span class="p">,</span> <span class="n">phoc_levels</span><span class="o">=</span><span class="n">phoc_levels</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">)</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="n">imgs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c"># parsing dataset: skipping comments, no headers | gathering: id, path, transcription, bbox_img and segmentation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lower_case</span> <span class="o">=</span> <span class="n">lower_case</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">csv_path_train</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">FILE_DIR</span><span class="p">,</span> <span class="s">&#39;iam_train.txt&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">csv_path_test</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">FILE_DIR</span><span class="p">,</span> <span class="s">&#39;iam_test.txt&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path_stop_words</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">csvs_path</span><span class="p">,</span> <span class="s">&#39;swIAM.txt&#39;</span><span class="p">)</span>
+        <span class="n">csv_path_words</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">csvs_path</span><span class="p">,</span> <span class="s">&#39;words.txt&#39;</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">csv_path_words</span><span class="p">,</span> <span class="s">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">csv_f</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">csv_f</span><span class="p">:</span>
+                <span class="c"># skipping comments</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;#&#39;</span><span class="p">):</span>
+                    <span class="c"># gather relevant information</span>
+                    <span class="n">contents</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">sep</span><span class="p">)</span>
+                    <span class="c"># segmentation</span>
+                    <span class="n">res_seg</span> <span class="o">=</span> <span class="n">contents</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="c"># skipping segmentation errors of dataset if required</span>
+                    <span class="k">if</span> <span class="n">good_segmentation</span> <span class="ow">and</span> <span class="n">res_seg</span> <span class="o">!=</span> <span class="s">&#39;ok&#39;</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="c"># bbox</span>
+                    <span class="n">bbox</span> <span class="o">=</span> <span class="n">contents</span><span class="p">[</span><span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+                    <span class="n">x0</span><span class="p">,</span> <span class="n">y0</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">h</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">coord</span><span class="p">))</span> <span class="k">for</span> <span class="n">coord</span> <span class="ow">in</span> <span class="n">bbox</span><span class="p">]</span>
+                    <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span> <span class="o">=</span> <span class="n">x0</span> <span class="o">+</span> <span class="n">w</span><span class="p">,</span> <span class="n">y0</span> <span class="o">+</span> <span class="n">h</span>
+                    <span class="n">bbox</span> <span class="o">=</span> <span class="n">x0</span><span class="p">,</span> <span class="n">y0</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span>
+                    <span class="c"># one bbox_img has values  -1 -1 -1 -1 ??? =&gt; sanity checking validity of bboxes</span>
+                    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">amin</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="c"># id</span>
+                    <span class="n">word_id</span> <span class="o">=</span> <span class="n">contents</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="c"># form file path</span>
+                    <span class="n">form_f_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">id_to_form_f_name</span><span class="p">(</span><span class="n">word_id</span><span class="p">)</span>
+                    <span class="n">form_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">imgs_path</span><span class="p">,</span> <span class="n">form_f_name</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">form_path</span><span class="p">):</span>
+                        <span class="k">continue</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">lazy_loading</span><span class="p">:</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="n">form_path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">imgs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                                <span class="n">img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">Image</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">form_path</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+                                <span class="n">imgs</span><span class="p">[</span><span class="n">form_path</span><span class="p">]</span> <span class="o">=</span> <span class="n">img</span>
+                        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+                            <span class="k">continue</span>
+                    <span class="c"># transcription</span>
+                    <span class="n">transcription</span> <span class="o">=</span> <span class="n">contents</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)</span>
+                    <span class="c"># if lower_case:</span>
+                    <span class="c">#     transcription = transcription.lower()</span>
+                    <span class="c"># storing of data</span>
+                    <span class="n">table</span><span class="p">[</span><span class="s">&#39;word_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">word_id</span><span class="p">)</span>
+                    <span class="n">table</span><span class="p">[</span><span class="s">&#39;form_path&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">form_path</span><span class="p">)</span>
+                    <span class="n">table</span><span class="p">[</span><span class="s">&#39;bbox&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span>
+                    <span class="n">table</span><span class="p">[</span><span class="s">&#39;res_seg&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">res_seg</span><span class="p">)</span>
+                    <span class="n">table</span><span class="p">[</span><span class="s">&#39;transcription&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">transcription</span><span class="p">)</span>
+        <span class="c"># dataframe containing the meta-data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
+        <span class="c"># indicates whether data has been loaded on construct or lazy loading is to be applied</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lazy_loading</span> <span class="o">=</span> <span class="n">lazy_loading</span>
+        <span class="c"># dictionary of forms</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">form_imgs</span> <span class="o">=</span> <span class="n">imgs</span>
+
+<div class="viewcode-block" id="IAMDataset.train_test_official"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.IAMDataset.train_test_official">[docs]</a>    <span class="k">def</span> <span class="nf">train_test_official</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stop_words</span><span class="o">=</span><span class="k">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        generates the official IAM-DB train and test subsets</span>
+<span class="sd">        (see http://www.fki.inf.unibe.ch/DBs/iamDB/tasks/largeWriterIndependentTextLineRecognitionTask.zip)</span>
+
+<span class="sd">        :return: train and test subsets in that order</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">train_set_official</span><span class="p">(</span><span class="n">stop_words</span><span class="o">=</span><span class="n">stop_words</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">test_set_official</span><span class="p">(</span><span class="n">stop_words</span><span class="o">=</span><span class="n">stop_words</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="IAMDataset.train_set_official"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.IAMDataset.train_set_official">[docs]</a>    <span class="k">def</span> <span class="nf">train_set_official</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stop_words</span><span class="o">=</span><span class="k">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        generates the official IAM-DB train subset</span>
+<span class="sd">        (see http://www.fki.inf.unibe.ch/DBs/iamDB/tasks/largeWriterIndependentTextLineRecognitionTask.zip)</span>
+
+<span class="sd">        :return: official training subset</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">subset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__sub_set_from_linescsv</span><span class="p">(</span><span class="n">csv_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">csv_path_train</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">stop_words</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path_stop_words</span><span class="p">,</span> <span class="s">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f_sw</span><span class="p">:</span>
+                <span class="n">stop_words</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f_sw</span><span class="p">:</span>
+                    <span class="n">stop_words</span> <span class="o">+=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;,&#39;</span><span class="p">)</span>
+            <span class="n">subset</span> <span class="o">=</span> <span class="n">subset</span><span class="o">.</span><span class="n">exclude_words</span><span class="p">(</span><span class="n">stop_words</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">subset</span></div>
+
+<div class="viewcode-block" id="IAMDataset.test_set_official"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.IAMDataset.test_set_official">[docs]</a>    <span class="k">def</span> <span class="nf">test_set_official</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stop_words</span><span class="o">=</span><span class="k">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        generates the official IAM-DB test subset</span>
+<span class="sd">        (see http://www.fki.inf.unibe.ch/DBs/iamDB/tasks/largeWriterIndependentTextLineRecognitionTask.zip)</span>
+
+<span class="sd">        :return: official testing subset</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">subset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__sub_set_from_linescsv</span><span class="p">(</span><span class="n">csv_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">csv_path_test</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">stop_words</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path_stop_words</span><span class="p">,</span> <span class="s">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f_sw</span><span class="p">:</span>
+                <span class="n">stop_words</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f_sw</span><span class="p">:</span>
+                    <span class="n">stop_words</span> <span class="o">+=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;,&#39;</span><span class="p">)</span>
+            <span class="n">subset</span> <span class="o">=</span> <span class="n">subset</span><span class="o">.</span><span class="n">exclude_words</span><span class="p">(</span><span class="n">stop_words</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">subset</span></div>
+
+    <span class="k">def</span> <span class="nf">__sub_set_from_linescsv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">csv_path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;extracts line-ids from a csv file and generates the respective subset&quot;&quot;&quot;</span>
+        <span class="c"># gather line ids</span>
+        <span class="n">ids</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">csv_path</span><span class="p">,</span> <span class="s">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f_csv</span><span class="p">:</span>
+            <span class="n">reader</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">reader</span><span class="p">(</span><span class="n">f_csv</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s">&#39; &#39;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">line_id</span> <span class="ow">in</span> <span class="n">reader</span><span class="p">:</span>
+                <span class="n">ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line_id</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="c"># create sub-set based on the indices</span>
+        <span class="n">sub_set</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__line_id_subset</span><span class="p">(</span><span class="n">ids</span><span class="o">=</span><span class="n">ids</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sub_set</span>
+
+    <span class="k">def</span> <span class="nf">__line_id_subset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ids</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;generates a subset for a list of line ids&quot;&quot;&quot;</span>
+        <span class="n">idcs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="p">)):</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+            <span class="c"># extract line_id</span>
+            <span class="n">word_id</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;word_id&#39;</span><span class="p">]</span>
+            <span class="n">line_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">word_id_to_line_id</span><span class="p">(</span><span class="n">word_id</span><span class="o">=</span><span class="n">word_id</span><span class="p">)</span>
+            <span class="c"># map to indices</span>
+            <span class="k">if</span> <span class="n">line_id</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">:</span>
+                <span class="n">idcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+        <span class="n">sub_set</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sub_set</span><span class="p">(</span><span class="n">idcs</span><span class="o">=</span><span class="n">idcs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sub_set</span>
+
+<div class="viewcode-block" id="IAMDataset.needs_lower"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.IAMDataset.needs_lower">[docs]</a>    <span class="k">def</span> <span class="nf">needs_lower</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alphabet</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Alphabet</span><span class="p">]):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">needs_lower</span><span class="p">(</span><span class="n">alphabet</span><span class="o">=</span><span class="n">alphabet</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_IAM</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="IAMDataset.id_to_path"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.IAMDataset.id_to_path">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">id_to_path</span><span class="p">(</span><span class="n">img_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param img_id: id specified by the IAM-dataset</span>
+<span class="sd">        :return: path to the image from the words/ directory of the dataset</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">img_info</span> <span class="o">=</span> <span class="n">img_id</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;-&#39;</span><span class="p">)</span>
+        <span class="n">base_dir</span> <span class="o">=</span> <span class="n">img_info</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">sub_dir</span> <span class="o">=</span> <span class="s">&#39;-&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">img_info</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">file_name</span> <span class="o">=</span> <span class="n">img_id</span> <span class="o">+</span> <span class="s">&#39;.png&#39;</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">base_dir</span><span class="p">,</span> <span class="n">sub_dir</span><span class="p">,</span> <span class="n">file_name</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="IAMDataset.id_to_form_f_name"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.IAMDataset.id_to_form_f_name">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">id_to_form_f_name</span><span class="p">(</span><span class="n">img_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param img_id: id specified by the IAM-dataset</span>
+<span class="sd">        :return: file name of the corresponding form</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">img_info</span> <span class="o">=</span> <span class="n">img_id</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;-&#39;</span><span class="p">)</span>
+        <span class="n">form_name</span> <span class="o">=</span> <span class="s">&#39;-&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">img_info</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">form_f_name</span> <span class="o">=</span> <span class="n">form_name</span> <span class="o">+</span> <span class="s">&#39;.png&#39;</span>
+        <span class="k">return</span> <span class="n">form_f_name</span></div>
+
+<div class="viewcode-block" id="IAMDataset.word_id_to_line_id"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.IAMDataset.word_id_to_line_id">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">word_id_to_line_id</span><span class="p">(</span><span class="n">word_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param word_id: word id</span>
+<span class="sd">        :return: line id</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">img_info</span> <span class="o">=</span> <span class="n">word_id</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;-&#39;</span><span class="p">)</span>
+        <span class="n">line_id</span> <span class="o">=</span> <span class="s">&#39;-&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">img_info</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">line_id</span></div></div>
+
+
+<div class="viewcode-block" id="GWDataSet"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.GWDataSet">[docs]</a><span class="k">class</span> <span class="nc">GWDataSet</span><span class="p">(</span><span class="n">DSetPhoc</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    pytorch Dataset adapter of the George Washingtion dataset</span>
+
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        We are using the almazan 4 fold cross validation for the George Washington dataset.</span>
+<span class="sd">        The queries and splits can be obtained from `the links in this repository &lt;https://github.com/almazan/watts/tree/master/datasets&gt;`__.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s">&#39; &#39;</span><span class="p">,</span> <span class="n">lazy_loading</span><span class="o">=</span><span class="k">False</span><span class="p">,</span> <span class="n">phoc_levels</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">lower_case</span><span class="o">=</span><span class="k">True</span><span class="p">,</span>
+                 <span class="n">alphabet</span><span class="o">=</span><span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_LOWER</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_DIGITS</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_PUNCTUATION</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="p">(</span><span class="k">None</span><span class="p">,</span> <span class="k">None</span><span class="p">),</span>
+                 <span class="n">csvs_path</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s">&#39;/data&#39;</span><span class="p">,</span> <span class="s">&#39;mspringe&#39;</span><span class="p">,</span> <span class="s">&#39;gwdb&#39;</span><span class="p">,</span> <span class="s">&#39;almazan&#39;</span><span class="p">,</span> <span class="s">&#39;queries&#39;</span><span class="p">,</span> <span class="s">&#39;queries.gtp&#39;</span><span class="p">),</span>
+                 <span class="n">imgs_path</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s">&#39;/data&#39;</span><span class="p">,</span> <span class="s">&#39;mspringe&#39;</span><span class="p">,</span> <span class="s">&#39;gwdb&#39;</span><span class="p">,</span> <span class="s">&#39;almazan&#39;</span><span class="p">,</span> <span class="s">&#39;images&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param sep: seperator used in the gt-files</span>
+<span class="sd">        :param lazy_loading: Indicates whether all data shall be loaded at once on construct or it shall be loaded</span>
+<span class="sd">                             &#39;lazy&#39;, when it is needed. default: False</span>
+<span class="sd">        :param phoc_levels: levels of PHOC-Encoding</span>
+<span class="sd">        :param imgs_path: path to pages directory</span>
+<span class="sd">        :param csvs_path: path to the queries file</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">)</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="n">imgs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lower_case</span> <span class="o">=</span> <span class="n">lower_case</span>
+        <span class="c"># parsing csv</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">csvs_path</span><span class="p">,</span> <span class="s">&#39;r&#39;</span><span class="p">)</span><span class="k">as</span> <span class="n">f_queries</span><span class="p">:</span>
+            <span class="n">reader</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">reader</span><span class="p">(</span><span class="n">f_queries</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="n">sep</span><span class="p">)</span>
+            <span class="n">word_id</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">form_name</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span><span class="p">,</span> <span class="n">x2</span><span class="p">,</span> <span class="n">y2</span><span class="p">,</span> <span class="n">transcription</span> <span class="ow">in</span> <span class="n">reader</span><span class="p">:</span>
+                <span class="n">table</span><span class="p">[</span><span class="s">&#39;bbox&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="nb">int</span><span class="p">(</span><span class="n">x1</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">y1</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">x2</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">y2</span><span class="p">)])</span>
+                <span class="c"># if lower_case:</span>
+                <span class="c">#     transcription = transcription.lower()</span>
+                <span class="n">table</span><span class="p">[</span><span class="s">&#39;transcription&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">transcription</span><span class="p">)</span>
+                <span class="n">form_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">imgs_path</span><span class="p">,</span> <span class="n">form_name</span><span class="p">)</span>
+                <span class="n">table</span><span class="p">[</span><span class="s">&#39;form_path&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">form_path</span><span class="p">)</span>
+                <span class="n">table</span><span class="p">[</span><span class="s">&#39;word_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">word_id</span><span class="p">)</span>
+                <span class="n">word_id</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">lazy_loading</span> <span class="ow">and</span> <span class="n">form_path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">imgs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="n">imgs</span><span class="p">[</span><span class="n">form_path</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">Image</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">form_path</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+        <span class="c"># setting DSetPhoc globals</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">form_imgs</span> <span class="o">=</span> <span class="n">imgs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lazy_loading</span> <span class="o">=</span> <span class="n">lazy_loading</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alphabet</span> <span class="o">=</span> <span class="n">alphabet</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phoc_levels</span> <span class="o">=</span> <span class="n">phoc_levels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trans_idcs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">augment_imgs</span> <span class="o">=</span> <span class="k">True</span>
+        <span class="c"># indices used by Almazan for a 4 fold cross validation</span>
+        <span class="n">p_almazan_idcs</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">__file__</span><span class="p">)),</span> <span class="s">&#39;almazan_idcs.npy&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fold_idcs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">p_almazan_idcs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="GWDataSet.fold"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.GWDataSet.fold">[docs]</a>    <span class="k">def</span> <span class="nf">fold</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;generates the k-ths fold of the Almazan 4-fold cross validation&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="mi">0</span> <span class="o">&lt;</span> <span class="n">k</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;almazan cross-evaluation proposes a k=4 k-cross evaluation, {} out of range&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+        <span class="n">test_idcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">idx</span> <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">fold</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fold_idcs</span><span class="p">)</span> <span class="k">if</span> <span class="n">fold</span> <span class="o">==</span> <span class="n">k</span><span class="p">]</span>
+        <span class="n">train_idcs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)))</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">test_idcs</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sub_set</span><span class="p">(</span><span class="n">train_idcs</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">sub_set</span><span class="p">(</span><span class="n">test_idcs</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="RimesDataSet"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.RimesDataSet">[docs]</a><span class="k">class</span> <span class="nc">RimesDataSet</span><span class="p">(</span><span class="n">DSetPhoc</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    pytorch Dataset adapter of the RIMES dataset</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        * csvs_path should lead to the directory where test and training annotations are stored</span>
+<span class="sd">        * imgs_path should lead to the directory where all images are stored</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s">&#39; &#39;</span><span class="p">,</span> <span class="n">lazy_loading</span><span class="o">=</span><span class="k">True</span><span class="p">,</span> <span class="n">phoc_levels</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">augment</span><span class="o">=</span><span class="k">False</span><span class="p">,</span> <span class="n">lower_case</span><span class="o">=</span><span class="k">True</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="p">(</span><span class="k">None</span><span class="p">,</span> <span class="k">None</span><span class="p">),</span>
+                 <span class="n">alphabet</span><span class="o">=</span><span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_LOWER</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_DIGITS</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_PUNCTUATION</span><span class="p">],</span>
+                 <span class="n">csvs_path</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s">&#39;/data&#39;</span><span class="p">,</span> <span class="s">&#39;mspringe&#39;</span><span class="p">,</span> <span class="s">&#39;rimes&#39;</span><span class="p">,</span> <span class="s">&#39;gt&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">),</span>
+                 <span class="n">imgs_path</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s">&#39;/data&#39;</span><span class="p">,</span> <span class="s">&#39;mspringe&#39;</span><span class="p">,</span> <span class="s">&#39;rimes&#39;</span><span class="p">,</span> <span class="s">&#39;imgs&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sep</span> <span class="o">=</span> <span class="n">sep</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lazy_loading</span> <span class="o">=</span> <span class="n">lazy_loading</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phoc_levels</span> <span class="o">=</span> <span class="n">phoc_levels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alphabet</span> <span class="o">=</span> <span class="n">alphabet</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">augment_imgs</span> <span class="o">=</span> <span class="n">augment</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lower_case</span> <span class="o">=</span> <span class="n">lower_case</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">imgs_path</span> <span class="o">=</span> <span class="n">imgs_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">form_imgs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c"># searching for training and test GT</span>
+        <span class="n">csvs</span> <span class="o">=</span> <span class="p">[</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">csvs_path</span><span class="p">,</span> <span class="n">fn</span><span class="p">)</span> <span class="k">for</span> <span class="n">fn</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">csvs_path</span><span class="p">)]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">p_train</span> <span class="o">=</span> <span class="k">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">p_test</span> <span class="o">=</span> <span class="k">None</span>
+        <span class="k">for</span> <span class="n">p_csv</span> <span class="ow">in</span> <span class="n">csvs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s">&#39;test&#39;</span> <span class="ow">in</span> <span class="n">p_csv</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">p_test</span> <span class="o">=</span> <span class="n">p_csv</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">p_train</span> <span class="o">=</span> <span class="n">p_csv</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_train</span> <span class="ow">is</span> <span class="k">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_test</span> <span class="ow">is</span> <span class="k">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">FileExistsError</span><span class="p">(</span><span class="s">&#39;could not find train and test GT-annotations in {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">csvs_path</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">idcs_test</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">idcs_train</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c"># parsing csv</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">idcs_train</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">idcs_test</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reload_rimes</span><span class="p">()</span>
+
+<div class="viewcode-block" id="RimesDataSet.reload_rimes"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.RimesDataSet.reload_rimes">[docs]</a>    <span class="k">def</span> <span class="nf">reload_rimes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;reloading the dataset&quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">__load_gt</span><span class="p">(</span><span class="n">df_table</span><span class="p">,</span> <span class="n">df_idx</span><span class="p">,</span> <span class="n">p_csv</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;method to parse a gt-annotation&quot;&quot;&quot;</span>
+            <span class="n">idx_start</span> <span class="o">=</span> <span class="n">df_idx</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">p_csv</span><span class="p">,</span> <span class="s">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f_csv</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f_csv</span><span class="p">:</span>
+                    <span class="c"># decoding french letters and mapping them to UTF-8</span>
+                    <span class="n">str_line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">,</span> <span class="s">&#39;replace&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                    <span class="c"># gt annotations may end with empty lines</span>
+                    <span class="k">if</span> <span class="n">str_line</span> <span class="o">==</span> <span class="s">&#39;&#39;</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="c"># parsing line</span>
+                    <span class="n">img_path</span><span class="p">,</span> <span class="n">transcript</span> <span class="o">=</span> <span class="n">str_line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sep</span><span class="p">)</span>
+                    <span class="n">img_path</span> <span class="o">=</span> <span class="n">img_path</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;ascii&#39;</span><span class="p">,</span> <span class="s">&#39;ignore&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s">&#39;ascii&#39;</span><span class="p">,</span> <span class="s">&#39;ignore&#39;</span><span class="p">)</span>
+                    <span class="c"># parsing french to ASCII</span>
+                    <span class="n">transcript</span> <span class="o">=</span> <span class="n">transcript</span><span class="c">#.lower()</span>
+                    <span class="n">transcript</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_ascii</span><span class="p">(</span><span class="n">transcript</span><span class="p">)</span>
+                    <span class="c"># determine img path</span>
+                    <span class="n">img_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">imgs_path</span><span class="p">,</span> <span class="n">img_path</span><span class="p">)</span>
+                    <span class="c"># filling table</span>
+                    <span class="c"># if self.lower_case:</span>
+                    <span class="c">#     transcript = transcript.lower()</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">img_path</span><span class="p">):</span>
+                        <span class="k">pass</span>
+                        <span class="c"># raise FileNotFoundError(&#39;No image exists at {}&#39;.format(img_path))</span>
+                        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s">&#39;No image exists at {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">img_path</span><span class="p">))</span>
+                        <span class="k">continue</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">lazy_loading</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">form_imgs</span><span class="p">[</span><span class="n">img_path</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">Image</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">img_path</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+                    <span class="c"># storing relevant data</span>
+                    <span class="n">df_table</span><span class="p">[</span><span class="s">&#39;transcription&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">transcript</span><span class="p">)</span>
+                    <span class="n">df_table</span><span class="p">[</span><span class="s">&#39;form_path&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">img_path</span><span class="p">)</span>
+                    <span class="n">df_table</span><span class="p">[</span><span class="s">&#39;word_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">df_idx</span><span class="p">)</span>
+                    <span class="n">df_table</span><span class="p">[</span><span class="s">&#39;bbox&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">([])</span>
+                    <span class="n">df_idx</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">return</span> <span class="n">df_table</span><span class="p">,</span> <span class="n">df_idx</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">idx_start</span><span class="p">,</span> <span class="n">df_idx</span><span class="p">))</span>
+        <span class="c"># initializing table and index counter for training/ test splits</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="c"># loading training data</span>
+        <span class="n">table</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">idcs_train</span> <span class="o">=</span> <span class="n">__load_gt</span><span class="p">(</span><span class="n">df_table</span><span class="o">=</span><span class="n">table</span><span class="p">,</span> <span class="n">df_idx</span><span class="o">=</span><span class="n">idx</span><span class="p">,</span> <span class="n">p_csv</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">p_train</span><span class="p">)</span>
+        <span class="c"># loading test data</span>
+        <span class="n">table</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">idcs_test</span> <span class="o">=</span> <span class="n">__load_gt</span><span class="p">(</span><span class="n">df_table</span><span class="o">=</span><span class="n">table</span><span class="p">,</span> <span class="n">df_idx</span><span class="o">=</span><span class="n">idx</span><span class="p">,</span> <span class="n">p_csv</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">p_test</span><span class="p">)</span>
+        <span class="c"># DataFrame conversion</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">table</span><span class="p">,</span> <span class="p">(</span><span class="n">idcs_train</span><span class="p">,</span> <span class="n">idcs_test</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="RimesDataSet.train_test_official"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.RimesDataSet.train_test_official">[docs]</a>    <span class="k">def</span> <span class="nf">train_test_official</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;the official training and test splits&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sub_set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">idcs_train</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">sub_set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">idcs_test</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="RimesDataSet.needs_lower"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.RimesDataSet.needs_lower">[docs]</a>    <span class="k">def</span> <span class="nf">needs_lower</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alphabet</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Alphabet</span><span class="p">]):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">needs_lower</span><span class="p">(</span><span class="n">alphabet</span><span class="o">=</span><span class="n">alphabet</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_RIMES</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="RimesDataSet.to_ascii"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.RimesDataSet.to_ascii">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">to_ascii</span><span class="p">(</span><span class="n">word_str</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;mapping a french word to an ascii encoding&quot;&quot;&quot;</span>
+        <span class="c"># grammars/ definitions for the mapping of characters</span>
+        <span class="n">non_ascii</span> <span class="o">=</span> <span class="s">&#39;âàêèëéîïôçûùü&#39;</span>
+        <span class="n">ascii_mapping</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;âà&#39;</span><span class="p">:</span> <span class="s">&#39;a&#39;</span><span class="p">,</span>
+                         <span class="s">&#39;êèëé&#39;</span><span class="p">:</span> <span class="s">&#39;e&#39;</span><span class="p">,</span>
+                         <span class="s">&#39;îï&#39;</span><span class="p">:</span> <span class="s">&#39;i&#39;</span><span class="p">,</span>
+                         <span class="s">&#39;ô&#39;</span><span class="p">:</span> <span class="s">&#39;o&#39;</span><span class="p">,</span>
+                         <span class="s">&#39;ç&#39;</span><span class="p">:</span> <span class="s">&#39;c&#39;</span><span class="p">,</span>
+                         <span class="s">&#39;ûùü&#39;</span><span class="p">:</span> <span class="s">&#39;u&#39;</span><span class="p">}</span>
+        <span class="n">non_ascii_upper</span> <span class="o">=</span> <span class="n">non_ascii</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+        <span class="n">ascii_mapping_upper</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="o">.</span><span class="n">upper</span><span class="p">():</span> <span class="n">ascii_mapping</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">ascii_mapping</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+        <span class="c"># building the ascii string</span>
+        <span class="n">ret_str</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+        <span class="k">for</span> <span class="n">char</span> <span class="ow">in</span> <span class="n">word_str</span><span class="p">:</span>
+            <span class="c"># lower case french</span>
+            <span class="k">if</span> <span class="n">char</span> <span class="ow">in</span> <span class="n">non_ascii</span><span class="p">:</span>
+                <span class="n">k</span> <span class="o">=</span> <span class="k">None</span>
+                <span class="k">for</span> <span class="n">k_chars</span> <span class="ow">in</span> <span class="n">ascii_mapping</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">char</span> <span class="ow">in</span> <span class="n">k_chars</span><span class="p">:</span>
+                        <span class="n">k</span> <span class="o">=</span> <span class="n">k_chars</span>
+                        <span class="k">break</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="ow">not</span> <span class="k">None</span><span class="p">:</span>
+                    <span class="n">ret_str</span> <span class="o">+=</span> <span class="n">ascii_mapping</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+            <span class="c"># upper case french</span>
+            <span class="k">elif</span> <span class="n">char</span> <span class="ow">in</span> <span class="n">non_ascii_upper</span><span class="p">:</span>
+                <span class="n">k</span> <span class="o">=</span> <span class="k">None</span>
+                <span class="k">for</span> <span class="n">k_chars</span> <span class="ow">in</span> <span class="n">ascii_mapping_upper</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">char</span> <span class="ow">in</span> <span class="n">k_chars</span><span class="p">:</span>
+                        <span class="n">k</span> <span class="o">=</span> <span class="n">k_chars</span>
+                        <span class="k">break</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="ow">not</span> <span class="k">None</span><span class="p">:</span>
+                    <span class="n">ret_str</span> <span class="o">+=</span> <span class="n">ascii_mapping_upper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+            <span class="c"># regular ascii</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">ret_str</span> <span class="o">+=</span> <span class="n">char</span>
+        <span class="c"># ascii encoding of replaces characters</span>
+        <span class="n">ascii_str</span> <span class="o">=</span> <span class="n">ret_str</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">,</span> <span class="s">&#39;ignore&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s">&#39;utf-8&#39;</span><span class="p">,</span> <span class="s">&#39;ignore&#39;</span><span class="p">)</span>
+        <span class="c"># if &#39;?&#39; in ret_str.encode(&#39;ascii&#39;, &#39;replace&#39;).decode(&#39;ascii&#39;, &#39;ignore&#39;):</span>
+        <span class="c">#     #print(word_str, ret_str.encode(&#39;ascii&#39;, &#39;replace&#39;).decode(&#39;ascii&#39;, &#39;ignore&#39;), ascii_str)</span>
+        <span class="c">#     print(word_str, ret_str.encode(&#39;ascii&#39;, &#39;replace&#39;).decode(&#39;ascii&#39;, &#39;ignore&#39;), ascii_str)</span>
+        <span class="c">#     pass</span>
+        <span class="c">#    return ret_str.encode(&#39;ascii&#39;, &#39;replace&#39;).decode(&#39;ascii&#39;, &#39;ignore&#39;)</span>
+        <span class="k">return</span> <span class="n">ascii_str</span></div></div>
+
+
+<div class="viewcode-block" id="HWSynthDataSet"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.HWSynthDataSet">[docs]</a><span class="k">class</span> <span class="nc">HWSynthDataSet</span><span class="p">(</span><span class="n">DSetPhoc</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    pytorch Dataset adapter of the IIIT-HWSynth dataset</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        * csvs_path can lead to the directory where the annotations are stored or directly to the annotations</span>
+<span class="sd">        * imgs_path leads to the directory where the images are stored</span>
+
+<span class="sd">    When training on IIIT-HWSynth I would suggest to pass the following arguments:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        python3 src/training/phocnet_trainer.py \\</span>
+<span class="sd">        path/to/dir_out \\</span>
+<span class="sd">        hws \\</span>
+<span class="sd">        path/to/hws/annotations \\</span>
+<span class="sd">        path/to/hws/Images_90K_Normalized \\</span>
+<span class="sd">        --max_iter=1e5 \\</span>
+<span class="sd">        --model_name=pretrained_PHOCNet \\</span>
+<span class="sd">        --gpu_idx=cuda:0 \\</span>
+<span class="sd">        --k_fold=1 \\</span>
+<span class="sd">        --alphabet=ldp \\</span>
+<span class="sd">        --s_batch=32 \\</span>
+<span class="sd">        --augment=none \\</span>
+<span class="sd">        --shuffle=false</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">phoc_levels</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">alphabet</span><span class="o">=</span><span class="p">[</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_LOWER</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_DIGITS</span><span class="p">,</span> <span class="n">Alphabet</span><span class="o">.</span><span class="n">ASCII_PUNCTUATION</span><span class="p">],</span>
+                 <span class="n">augment</span><span class="o">=</span><span class="k">False</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="p">(</span><span class="k">None</span><span class="p">,</span> <span class="k">None</span><span class="p">),</span> <span class="n">lower_case</span><span class="o">=</span><span class="k">True</span><span class="p">,</span>
+                 <span class="n">csvs_path</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s">&#39;/data&#39;</span><span class="p">,</span> <span class="s">&#39;mspringe&#39;</span><span class="p">,</span> <span class="s">&#39;hw_synth&#39;</span><span class="p">,</span> <span class="s">&#39;groundtruth&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">),</span>
+                 <span class="n">imgs_path</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s">&#39;/vol&#39;</span><span class="p">,</span> <span class="s">&#39;corpora&#39;</span><span class="p">,</span> <span class="s">&#39;document-image-analysis&#39;</span><span class="p">,</span> <span class="s">&#39;hw-synth&#39;</span><span class="p">,</span>
+                                        <span class="s">&#39;Images_90K_Normalized&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span> <span class="n">lower_case</span><span class="o">=</span><span class="n">lower_case</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phoc_levels</span> <span class="o">=</span> <span class="n">phoc_levels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lazy_loading</span> <span class="o">=</span> <span class="k">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alphabet</span> <span class="o">=</span> <span class="n">alphabet</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">augment_imgs</span> <span class="o">=</span> <span class="n">augment</span>
+        <span class="c"># searchign GT annotations</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">csvs_path</span><span class="p">):</span>
+            <span class="nb">dir</span> <span class="o">=</span> <span class="n">csvs_path</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">csvs_path</span><span class="p">)</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="nb">dir</span><span class="p">)</span>
+        <span class="n">p_train</span><span class="p">,</span> <span class="n">p_test</span><span class="p">,</span> <span class="n">p_file_names</span> <span class="o">=</span> <span class="s">&#39;IIIT-HWS-10K-train-indices.npy&#39;</span><span class="p">,</span> <span class="s">&#39;IIIT-HWS-10K-val-indices.npy&#39;</span><span class="p">,</span> \
+                                        <span class="s">&#39;IIIT-HWS-10K.npy&#39;</span>
+        <span class="c"># numpy files already exist</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">p</span> <span class="ow">in</span> <span class="n">files</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="p">(</span><span class="n">p_train</span><span class="p">,</span> <span class="n">p_test</span><span class="p">,</span> <span class="n">p_file_names</span><span class="p">)):</span>
+            <span class="c"># loading splits</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">test_idcs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">dir</span><span class="p">,</span> <span class="n">p_test</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">train_idcs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">dir</span><span class="p">,</span> <span class="n">p_train</span><span class="p">))</span>
+            <span class="n">file_names</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">dir</span><span class="p">,</span> <span class="n">p_file_names</span><span class="p">))</span>
+        <span class="c"># numpy annotations get created (loads faster)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">file_names</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">test_idcs</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">train_idcs</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">csvs_path</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s">&#39; &#39;</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="k">None</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)):</span>
+                <span class="n">pth</span><span class="p">,</span> <span class="n">ts</span><span class="p">,</span> <span class="nb">id</span><span class="p">,</span> <span class="n">is_test</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">file_names</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">pth</span><span class="p">,</span> <span class="n">ts</span><span class="p">])</span>
+                <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">is_test</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">test_idcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">train_idcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">test_idcs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">test_idcs</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">train_idcs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">train_idcs</span><span class="p">)</span>
+            <span class="n">file_names</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">file_names</span><span class="p">)</span>
+            <span class="c"># saving</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="p">[(</span><span class="n">p_train</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">train_idcs</span><span class="p">),</span> <span class="p">(</span><span class="n">p_test</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">test_idcs</span><span class="p">),</span> <span class="p">(</span><span class="n">p_file_names</span><span class="p">,</span> <span class="n">file_names</span><span class="p">)]:</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">dir</span><span class="p">,</span> <span class="n">name</span><span class="p">),</span> <span class="n">arr</span><span class="p">)</span>
+        <span class="c"># NOTE: a million images, hence dictionary approach not feasible</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">form_imgs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c"># filling table</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">p_img</span><span class="p">,</span> <span class="n">transcript</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">file_names</span><span class="p">):</span>
+            <span class="n">p_img</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">p_img</span><span class="p">)</span>
+            <span class="n">transcript</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">transcript</span><span class="p">)</span>
+            <span class="n">form_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">imgs_path</span><span class="p">,</span> <span class="n">p_img</span><span class="p">)</span>
+            <span class="n">bbox</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">img_id</span> <span class="o">=</span> <span class="n">p_img</span>
+            <span class="c"># sanity</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">form_path</span><span class="p">):</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s">&#39;{} does not exist&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">form_path</span><span class="p">))</span>
+                <span class="k">continue</span>
+            <span class="c"># storing data</span>
+            <span class="n">table</span><span class="p">[</span><span class="s">&#39;transcription&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">transcript</span><span class="p">)</span>
+            <span class="n">table</span><span class="p">[</span><span class="s">&#39;form_path&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">form_path</span><span class="p">)</span>
+            <span class="n">table</span><span class="p">[</span><span class="s">&#39;word_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">img_id</span><span class="p">)</span>
+            <span class="n">table</span><span class="p">[</span><span class="s">&#39;bbox&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
+
+<div class="viewcode-block" id="HWSynthDataSet.train_test_official"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.HWSynthDataSet.train_test_official">[docs]</a>    <span class="k">def</span> <span class="nf">train_test_official</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;the official training and test splits&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sub_set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">train_idcs</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">sub_set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">test_idcs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="HWSynthDataSet.needs_lower"><a class="viewcode-back" href="../../../src.io.dataloader.html#src.io.dataloader.HWSynthDataSet.needs_lower">[docs]</a>    <span class="k">def</span> <span class="nf">needs_lower</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alphabet</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Alphabet</span><span class="p">]):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">needs_lower</span><span class="p">(</span><span class="n">alphabet</span><span class="o">=</span><span class="n">alphabet</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_RIMES</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">)</span> \
+               <span class="ow">and</span> <span class="p">(</span><span class="n">Alphabet</span><span class="o">.</span><span class="n">PERFECT_IAM</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">alphabet</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+      <div class="relbar-bottom">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+      <li><a href="../../../index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Maximilian Rüdiger Springenberg.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.3.0.
+    </div>
+      <!-- PSphinxTheme -->
+  </body>
+</html>
