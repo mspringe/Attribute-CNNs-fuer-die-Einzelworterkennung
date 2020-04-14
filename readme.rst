@@ -2,7 +2,7 @@ Attribute CNNs für die Einzelworterkennung (Attribute CNNs for Handwriting Word
 ############################################################################################
 
 
-.. image:: doc/images/pipeline_wrec.png
+.. image:: docs/images/pipeline_wrec.png
 
 
 As part of my bachelors thesis, I implemented experiments that utilized variantions of the PHOCNet for word recognition.
