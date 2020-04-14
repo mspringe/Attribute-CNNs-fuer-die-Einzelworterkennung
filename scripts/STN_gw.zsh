@@ -1,2 +1,0 @@
-echo "runnin: nice python3 ../src/training/phocnet_trainer.py /data/mspringe/STN_models/ gw /data/mspringe/gwdb/almazan/queries/queries.gtp /data/mspringe/gwdb/almazan/images --max_iter=$2 --name=$2 --gpu_idx=$3 --k_fold=$4 ${@:5}"
-nice python3 ../src/training/phocnet_trainer.py /data/mspringe/STN_models/ gw /data/mspringe/gwdb/almazan/queries/queries.gtp /data/mspringe/gwdb/almazan/images --max_iter=$1 --name=$2 --gpu_idx=$3 --k_fold=$4 --PHOCNet_type=stn ${@:5}

@@ -1,2 +1,0 @@
-echo "nice python3 ../src/training/cca_cross_validation.py /data/mspringe/CCA/ gw /data/mspringe/gwdb/almazan/queries/queries.gtp /data/mspringe/gwdb/almazan/images $1 --gpu_idx=$2 --k_fold=$3 --name=$4 ${@:5}"
-nice python3 ../src/training/cca_cross_validation.py /data/mspringe/CCA/ gw /data/mspringe/gwdb/almazan/queries/queries.gtp /data/mspringe/gwdb/almazan/images $1 --gpu_idx=$2 --k_fold=$3 --name=$4 ${@:5}

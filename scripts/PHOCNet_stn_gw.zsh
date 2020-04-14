@@ -1,2 +1,0 @@
-printf "\n\nrunning: nice python3 ../src/training/phocnet_trainer.py /data/mspringe/PHOCNet_models/ gw /data/mspringe/gwdb/almazan/queries/queries.gtp /data/mspringe/gwdb/almazan/images --PHOCNet_type=stn --max_iter=$1 --name=$2 --gpu_idx=$3\n"
-nice python3 ../src/training/phocnet_trainer.py /data/mspringe/PHOCNet_models/ gw /data/mspringe/gwdb/almazan/queries/queries.gtp /data/mspringe/gwdb/almazan/images --PHOCNet_type=stn --max_iter=$1 --name=$2 --gpu_idx=$3
