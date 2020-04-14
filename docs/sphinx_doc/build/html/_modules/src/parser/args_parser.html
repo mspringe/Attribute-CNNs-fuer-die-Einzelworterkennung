@@ -1,0 +1,245 @@
+
+
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>src.parser.args_parser &#8212; Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</title>
+    <link rel="stylesheet" href="../../../_static/p_sphinx_theme.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/local_fonts.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/javascript" src="../../../_static/jquery.cookie.js"></script>
+    <script type="text/javascript" src="../../../_static/p_sphinx_theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head><body>
+      <div class="relbar-top">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+      <li><a href="../../../index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for src.parser.args_parser</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module provides args-parser for training and inference.</span>
+
+<span class="sd">.. moduleauthor:: Maximilian Springenberg &lt;mspringenberg@gmail.com&gt;</span>
+
+<span class="sd">|</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">argparse</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="c"># own code</span>
+<span class="n">FILE_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">__file__</span><span class="p">))</span>
+<span class="n">SRC_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">FILE_DIR</span><span class="p">,</span> <span class="s">&#39;..&#39;</span><span class="p">,</span> <span class="s">&#39;..&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">))</span>
+<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SRC_DIR</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">src.util</span> <span class="k">import</span> <span class="n">phoc_util</span>
+
+
+<div class="viewcode-block" id="parser_training"><a class="viewcode-back" href="../../../src.parser.args_parser.html#src.parser.args_parser.parser_training">[docs]</a><span class="k">def</span> <span class="nf">parser_training</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This method provides an args-parser for training arguments.</span>
+
+<span class="sd">    :return: an args parser for the following arguments</span>
+
+<span class="sd">        Positional:</span>
+
+<span class="sd">        =============== ======================================================</span>
+<span class="sd">        arg             semantic</span>
+<span class="sd">        =============== ======================================================</span>
+<span class="sd">        dir_out         the directory to safe the net to</span>
+<span class="sd">        dset_name       the dataset to train on</span>
+<span class="sd">        dset_csv        path to the csv(/dir) with metadata</span>
+<span class="sd">        dset_src        dir of the dataset(-images)</span>
+<span class="sd">        =============== ======================================================</span>
+
+<span class="sd">        Optional:</span>
+
+<span class="sd">        =============== =================================================================================== ============</span>
+<span class="sd">        arg             semantic                                                                            default</span>
+<span class="sd">        =============== =================================================================================== ============</span>
+<span class="sd">        --gpu_idx       name of gpu_idx-device to run on (cuda:X)                                           none</span>
+<span class="sd">        --max_iter      maximum number of batches processed during training                                 100,000</span>
+<span class="sd">        --loss          loss function used in training                                                      cosine</span>
+<span class="sd">        --augment       indicates augmentation of dataset                                                   eq</span>
+<span class="sd">        --model_name    name/ id for the model                                                              my_model</span>
+<span class="sd">        --optimizer     choose between adam and sgd optimizer                                               adam</span>
+<span class="sd">        --PHOCNet_type  choose between my (classic) implementation and an extra STN layer                   normal</span>
+<span class="sd">        --k_fold        number of folding index for Almazans cross validation on the GW set                 1</span>
+<span class="sd">        --stop_words    flag indicating whether to use stop words for IAM-DB                                true</span>
+<span class="sd">        --punctuation   flag indicating whether to use punctuation for IAM-DB                               true</span>
+<span class="sd">        --lr            set the initial learning rate manually                                              0.0001</span>
+<span class="sd">        --save_interval interval of iterations/ frequency to save a statedict during training               10,000</span>
+<span class="sd">        --alphabet      alphabet properties to be utilized (see :func:`src.util.phoc_util.rep_to_alphabet`) ldp</span>
+<span class="sd">        --phoc_lvls     number of levels used for the PHOC                                                  3</span>
+<span class="sd">        --s_batch       batch size                                                                          10</span>
+<span class="sd">        --shuffle       shuffling of train data                                                             true</span>
+<span class="sd">        --scale_w       scale of image, no scaling along axis if none                                       none</span>
+<span class="sd">        --scale_h       scale of image, no scaling along axis if none                                       none</span>
+<span class="sd">        --pretrained    path to a pretrained model                                                          none</span>
+<span class="sd">        =============== =================================================================================== ============</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">()</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;dir_out&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;directory to save the NN at&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;dset_name&#39;</span><span class="p">,</span>  <span class="n">help</span><span class="o">=</span><span class="s">&#39;dataset in {iam, gw, rimes, hws}&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;dset_csv&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;path to csv with meta-data&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;dset_src&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;dir of the dataset&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--gpu_idx&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;none&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;index of gpu_idx tu run on&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--max_iter&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;100000&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;number of maximum iterations/ steps&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--loss&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;cosine&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;loss function to be used in training&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--augment&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;eq&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;indication of augmentation for training&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--model_name&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;my_model&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;name of the trained model&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--optimizer&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;adam&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;optimzer to be used (adam, sgd), default: adam&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--PHOCNet_type&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;normal&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;phocnet model type {stn, normal}&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--k_fold&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;1&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;fold number (e.g. relevant for gw)&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--stop_words&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;true&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;indicates whether to include stop words in training data&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--punctuation&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;true&#39;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s">&#39;indicates whether to include punctuation in training data&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--lr&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;0.0001&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;learning rate of optimizer&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--save_interval&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;10000&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;interval to save statedict of model&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--alphabet&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;ldp&#39;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s">&#39;alphabet to be used l: lowercase, u: uppercase, d: digits, p: punctuation&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--phoc_lvls&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">phoc_util</span><span class="o">.</span><span class="n">DEFAULT_PHOC_LEVELS</span><span class="p">),</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;levels of the PHOC&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--s_batch&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;10&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;batch size&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--shuffle&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;true&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;shuffling of train-data&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--scale_w&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;none&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;scaling of images&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--scale_h&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;none&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;scaling of images&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--pretrained&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;none&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;path to a pretrained model&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">parser</span></div>
+
+
+<div class="viewcode-block" id="parser_inference"><a class="viewcode-back" href="../../../src.parser.args_parser.html#src.parser.args_parser.parser_inference">[docs]</a><span class="k">def</span> <span class="nf">parser_inference</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This method provides an args-parser for inference arguments.</span>
+
+<span class="sd">    :return: an args parser for the following arguments</span>
+
+<span class="sd">        Positional:</span>
+
+<span class="sd">        =============== ======================================================</span>
+<span class="sd">        arg             semantic</span>
+<span class="sd">        =============== ======================================================</span>
+<span class="sd">        net_path        path to the PHOCNets state-dict</span>
+<span class="sd">        dir_out         the directory to safe the net to</span>
+<span class="sd">        dset_name       the dataset to train on</span>
+<span class="sd">        dset_csv        path to the csv(/dir) with metadata</span>
+<span class="sd">        dset_src        dir of the dataset(-images)</span>
+<span class="sd">        =============== ======================================================</span>
+
+<span class="sd">        Optional:</span>
+
+<span class="sd">        =============== =================================================================================== ============</span>
+<span class="sd">        arg             semantic                                                                            default</span>
+<span class="sd">        =============== =================================================================================== ============</span>
+<span class="sd">        --estimator     kind of estimator/ path to pickled estimator                                        cosine</span>
+<span class="sd">        --gpu_idx       name of gpu_idx-device to run on (cuda:X)                                           none</span>
+<span class="sd">        --model_name    name/ id for the model                                                              my_model</span>
+<span class="sd">        --PHOCNet_type  choose between my (classic) implementation and an extra STN layer                   normal</span>
+<span class="sd">        --k_fold        number of folding index for Almazans cross validation on the GW set                 1</span>
+<span class="sd">        --stop_words    flag indicating whether to use stop words for IAM-DB                                true</span>
+<span class="sd">        --alphabet      alphabet properties to be utilized (see :func:`src.util.phoc_util.rep_to_alphabet`) ldp</span>
+<span class="sd">        --phoc_lvls     number of levels used for the PHOC                                                  3</span>
+<span class="sd">        --s_batch       batch size                                                                          10</span>
+<span class="sd">        --scale_w       scale of image, no scaling along axis if none                                       none</span>
+<span class="sd">        --scale_h       scale of image, no scaling along axis if none                                       none</span>
+<span class="sd">        --n_codes_lvl   level to extract neural codes from. Ranging from -4 to 0=output                     0</span>
+<span class="sd">        =============== =================================================================================== ============</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">()</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;net_path&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;path to the PHOCNets state-dict&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;dir_out&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;directory to save the NN at&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;dset_name&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;dataset in {iam, gw, rimes, hws}&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;dset_csv&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;path to csv with meta-data&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;dset_src&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;dir of the dataset&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--estimator&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;cosine&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;kind of estimator/ path to pickled estimator&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--gpu_idx&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;none&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;index of gpu_idx tu run on&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--model_name&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;my_model&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;name of the trained model&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--PHOCNet_type&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;normal&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;phocnet model type {stn, normal}&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--k_fold&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;1&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;fold number (e.g. relevant for gw)&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--stop_words&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;true&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;indicates whether to include stop words in training data&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--alphabet&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;ldp&#39;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s">&#39;alphabet to be used l: lowercase, u: uppercase, d: digits, p: punctuation&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--phoc_lvls&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">phoc_util</span><span class="o">.</span><span class="n">DEFAULT_PHOC_LEVELS</span><span class="p">),</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;levels of the PHOC&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--s_batch&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;10&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;batch size&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--scale_w&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;none&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;scaling of images&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--scale_h&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;none&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;scaling of images&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--n_codes_lvl&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;0&#39;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s">&#39;level to extract neural codes from. Ranging from -4 to 0=output&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">parser</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+      <div class="relbar-bottom">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+      <li><a href="../../../index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Maximilian Rüdiger Springenberg.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.3.0.
+    </div>
+      <!-- PSphinxTheme -->
+  </body>
+</html>

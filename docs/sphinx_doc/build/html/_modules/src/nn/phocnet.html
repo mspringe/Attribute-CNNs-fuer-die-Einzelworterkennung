@@ -1,0 +1,520 @@
+
+
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>src.nn.phocnet &#8212; Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</title>
+    <link rel="stylesheet" href="../../../_static/p_sphinx_theme.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/local_fonts.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/javascript" src="../../../_static/jquery.cookie.js"></script>
+    <script type="text/javascript" src="../../../_static/p_sphinx_theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head><body>
+      <div class="relbar-top">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+      <li><a href="../../../index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for src.nn.phocnet</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">A PHOCNet implementation.</span>
+
+<span class="sd">I took some inspiration from a pre-existing implementation of the</span>
+<span class="sd">`PHOCNet &lt;https://github.com/georgeretsi/pytorch-phocnet&gt;`__.</span>
+
+<span class="sd">.. moduleauthor:: Maximilian Springenberg &lt;mspringenberg@gmail.com&gt;</span>
+
+<span class="sd">|</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="c"># system libraries</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="c"># torch relevant imports</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">torch.nn</span> <span class="k">as</span> <span class="nn">nn</span>
+<span class="kn">import</span> <span class="nn">torch.nn.functional</span> <span class="k">as</span> <span class="nn">F</span>
+<span class="c"># own libraries</span>
+<span class="kn">from</span> <span class="nn">src.nn.pp</span> <span class="k">import</span> <span class="n">GPP</span><span class="p">,</span> <span class="n">PPTypes</span><span class="p">,</span> <span class="n">PPTypePooling</span>
+<span class="kn">from</span> <span class="nn">src.nn.stn</span> <span class="k">import</span> <span class="n">STN</span>
+
+
+<div class="viewcode-block" id="PHOCNet"><a class="viewcode-back" href="../../../src.nn.phocnet.html#src.nn.phocnet.PHOCNet">[docs]</a><span class="k">class</span> <span class="nc">PHOCNet</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of the PHOCNet architecture proposed by Sebastian Sudhold in his paper</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_out</span><span class="p">,</span> <span class="n">input_channels</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                 <span class="n">pp_type</span><span class="o">=</span><span class="n">PPTypes</span><span class="o">.</span><span class="n">T_TPP</span><span class="p">,</span> <span class="n">pooling_levels</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pool_type</span><span class="o">=</span><span class="n">PPTypePooling</span><span class="o">.</span><span class="n">MAX_POOL</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param n_out: number of output channels</span>
+<span class="sd">        :param input_channels: number of input channels</span>
+<span class="sd">        :param gpp_type: type of input channels (see :cls:`GPPTypes`)</span>
+<span class="sd">        :param pooling_levels: levels of the gpp</span>
+<span class="sd">        :param pool_type: pooling of the gpp (see :cls:`GPPPooling`)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">PHOCNet</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="c"># set-up convolution layers Layers</span>
+        <span class="n">kernel_size_conv</span> <span class="o">=</span> <span class="mi">3</span>
+        <span class="n">padding_conv</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">stride_conv</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="c"># set-up pooling layers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">padding_pooling</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kernel_pooling</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stride_pooling</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="c"># phase 1: conv. 3 x 3 pooling layers + ReLU</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conv1_1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="n">input_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+                                 <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel_size_conv</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride_conv</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="n">padding_conv</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conv1_2</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">conv1_1</span><span class="o">.</span><span class="n">out_channels</span><span class="p">,</span>  <span class="n">out_channels</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+                                 <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel_size_conv</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride_conv</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="n">padding_conv</span><span class="p">)</span>
+        <span class="c"># phase 2: conv. after 1st max-pooling: 3 x 3 pooling layers + ReLU</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conv2_1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">conv1_2</span><span class="o">.</span><span class="n">out_channels</span><span class="p">,</span>  <span class="n">out_channels</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+                                 <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel_size_conv</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride_conv</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="n">padding_conv</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conv2_2</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">conv2_1</span><span class="o">.</span><span class="n">out_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+                                 <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel_size_conv</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride_conv</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="n">padding_conv</span><span class="p">)</span>
+        <span class="c"># phase 3: conv. after 2nd max-pooling: 3 x 3 pooling layers + ReLU</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conv3_1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">conv2_2</span><span class="o">.</span><span class="n">out_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span>
+                                 <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel_size_conv</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride_conv</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="n">padding_conv</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conv3_2</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_1</span><span class="o">.</span><span class="n">out_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span>
+                                 <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel_size_conv</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride_conv</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="n">padding_conv</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conv3_3</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_2</span><span class="o">.</span><span class="n">out_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span>
+                                 <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel_size_conv</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride_conv</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="n">padding_conv</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conv3_4</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_3</span><span class="o">.</span><span class="n">out_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span>
+                                 <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel_size_conv</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride_conv</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="n">padding_conv</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conv3_5</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_4</span><span class="o">.</span><span class="n">out_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span>
+                                 <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel_size_conv</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride_conv</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="n">padding_conv</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conv3_6</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_5</span><span class="o">.</span><span class="n">out_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+                                 <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel_size_conv</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride_conv</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="n">padding_conv</span><span class="p">)</span>
+        <span class="c"># phase 4: conv. upscaled channels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conv4_1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_6</span><span class="o">.</span><span class="n">out_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+                                 <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel_size_conv</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride_conv</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="n">padding_conv</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conv4_2</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">conv4_1</span><span class="o">.</span><span class="n">out_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+                                 <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel_size_conv</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride_conv</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="n">padding_conv</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conv4_3</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">conv4_2</span><span class="o">.</span><span class="n">out_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+                                 <span class="n">kernel_size</span><span class="o">=</span><span class="n">kernel_size_conv</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride_conv</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="n">padding_conv</span><span class="p">)</span>
+        <span class="c"># creating the (spatial for gpp_type=&#39;spp&#39;) pyramid pooling layer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pooling_layer_fn</span> <span class="o">=</span> <span class="n">GPP</span><span class="p">(</span><span class="n">gpp_type</span><span class="o">=</span><span class="n">pp_type</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="n">pooling_levels</span><span class="p">,</span> <span class="n">pool_type</span><span class="o">=</span><span class="n">pool_type</span><span class="p">)</span>
+        <span class="n">pooling_output_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pooling_layer_fn</span><span class="o">.</span><span class="n">pooling_output_size</span>
+        <span class="c"># phase 5: linear, fully connected + ReLU(with dropouts)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lin5_1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">pooling_output_size</span><span class="p">,</span> <span class="mi">4096</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lin5_2</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">4096</span><span class="p">,</span> <span class="mi">4096</span><span class="p">)</span>
+        <span class="c"># phase 6: linear, fullly connected + linear activation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lin6_1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">4096</span><span class="p">,</span> <span class="n">n_out</span><span class="p">)</span>
+        <span class="c"># phase 7: output layer, fully connected + sigmoid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">n_out</span><span class="p">,</span> <span class="n">n_out</span><span class="p">)</span>
+
+<div class="viewcode-block" id="PHOCNet.neural_codes"><a class="viewcode-back" href="../../../src.nn.phocnet.html#src.nn.phocnet.PHOCNet.neural_codes">[docs]</a>    <span class="k">def</span> <span class="nf">neural_codes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates &quot;the neural-codes&quot;, in other words the output one layer before the prediction layer.</span>
+<span class="sd">        Those can be used to create a subspace between the predicted attributes and the neural codes themselfes, in</span>
+<span class="sd">        order to predict words in that subspace based on the much larger neural codes with more encoded information.</span>
+<span class="sd">        (e.g. using CCA)</span>
+
+<span class="sd">        :param x: input vector of image-data (normalized in [0,1])</span>
+<span class="sd">        :return: tensor of neural codes</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="o">-</span><span class="mi">4</span> <span class="o">&lt;=</span> <span class="n">pos</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;got pos={}, &#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span> <span class="o">+</span>
+                             <span class="s">&#39;but neural codes are only available for up to 4 layers prior =&gt; pos in [-4,0]&#39;</span><span class="p">)</span>
+        <span class="c"># phase 1: conv. 3 x 3 pooling layers + ReLU</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv1_1</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv1_2</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="c"># pooling</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pool</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+        <span class="c"># phase 2: conv. after 1st max-pooling: 3 x 3 pooling layers + ReLU</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv2_1</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv2_2</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="c"># pooling</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pool</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+        <span class="c"># phase 3: conv. after 2nd max-pooling: 3 x 3 pooling layers + ReLU</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_1</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_2</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_3</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_4</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_5</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_6</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="c"># phase 4: conv. upscaled channels</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv4_1</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv4_2</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv4_3</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="c"># spatial pooling</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pooling_layer_fn</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pos</span> <span class="o">==</span> <span class="o">-</span><span class="mi">4</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">y</span>
+        <span class="c"># phase 5: linear, fully connected + ReLU(with dropouts)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">linear_dropout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lin5_1</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pos</span> <span class="o">==</span> <span class="o">-</span><span class="mi">3</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">y</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">linear_dropout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lin5_2</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pos</span> <span class="o">==</span> <span class="o">-</span><span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">y</span>
+        <span class="c"># phase 6: linear, fullly connected + linear activation</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">linear_act</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lin6_1</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pos</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">y</span>
+        <span class="c"># phase 7: output layer, fully connected + sigmoid</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">linear_sigmoid</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">y</span></div>
+
+<div class="viewcode-block" id="PHOCNet.forward"><a class="viewcode-back" href="../../../src.nn.phocnet.html#src.nn.phocnet.PHOCNet.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        performs a forward pass of this network (overrides :func:`nn.Module.forward`)</span>
+
+<span class="sd">        :param x: input-vector of image-data (notmalized in [0,1])</span>
+<span class="sd">        :return: tensor of PHOC-encoding</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># neural codes of this network, (all phases 1-7)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">neural_codes</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">y</span></div>
+
+<div class="viewcode-block" id="PHOCNet.init_weights"><a class="viewcode-back" href="../../../src.nn.phocnet.html#src.nn.phocnet.PHOCNet.init_weights">[docs]</a>    <span class="k">def</span> <span class="nf">init_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        weights initialization, (overrides :func:`nn.Module`)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">PHOCNet</span><span class="o">.</span><span class="n">_init_weights_he</span><span class="p">)</span></div>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_init_weights_he</span><span class="p">(</span><span class="n">m</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        PHOCNet weight initialization to be applied to a Module</span>
+
+<span class="sd">        :param m: Module to initialize wieghts for</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">):</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">kernel_size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">m</span><span class="o">.</span><span class="n">kernel_size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">m</span><span class="o">.</span><span class="n">out_channels</span>
+            <span class="n">m</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">normal_</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="mf">2.</span> <span class="o">/</span> <span class="n">n</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">):</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">out_features</span>
+            <span class="n">m</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">normal_</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="mf">2.</span> <span class="o">/</span> <span class="n">n</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">))</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">constant_</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">bias</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+<div class="viewcode-block" id="PHOCNet.pool"><a class="viewcode-back" href="../../../src.nn.phocnet.html#src.nn.phocnet.PHOCNet.pool">[docs]</a>    <span class="k">def</span> <span class="nf">pool</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_in</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        performs 2d pooling</span>
+
+<span class="sd">        :param x_in: input vector</span>
+<span class="sd">        :return: pooling results</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># sanity checks (preferably working with Tensors)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x_in</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s">&#39;WARNING: expected Tensor, got {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">x_in</span><span class="p">)),</span> <span class="ne">Warning</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+            <span class="n">x_in</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">x_in</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c"># pooling</span>
+            <span class="n">x_out</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">max_pool2d</span><span class="p">(</span><span class="n">x_in</span><span class="p">,</span> <span class="n">kernel_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">kernel_pooling</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">stride_pooling</span><span class="p">,</span>
+                                 <span class="n">padding</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">padding_pooling</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">_</span><span class="p">:</span>
+            <span class="c"># input to small for pooling??? -&gt; maybe a single point &#39;.&#39;?</span>
+            <span class="k">return</span> <span class="n">x_in</span>
+        <span class="k">return</span> <span class="n">x_out</span></div>
+
+<div class="viewcode-block" id="PHOCNet.linear_dropout"><a class="viewcode-back" href="../../../src.nn.phocnet.html#src.nn.phocnet.PHOCNet.linear_dropout">[docs]</a>    <span class="k">def</span> <span class="nf">linear_dropout</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">layer</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">,</span> <span class="n">x_in</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        performs a linear forward propagation with relu activation and a dropout</span>
+
+<span class="sd">        :param layer: layer to propagate forward from</span>
+<span class="sd">        :param x_in: input vector</span>
+<span class="sd">        :return: activations</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># sanity checks (Linear dropouts, preferably working with Tensors, correct input size)</span>
+        <span class="n">x_in</span> <span class="o">=</span> <span class="n">PHOCNet</span><span class="o">.</span><span class="n">_sanitize_forward</span><span class="p">(</span><span class="n">layer</span><span class="o">=</span><span class="n">layer</span><span class="p">,</span> <span class="n">x_in</span><span class="o">=</span><span class="n">x_in</span><span class="p">,</span> <span class="n">n_channels</span><span class="o">=</span><span class="n">layer</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span> <span class="n">t_layer</span><span class="o">=</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">)</span>
+        <span class="c"># relu activation and dropouts</span>
+        <span class="n">x_out</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">relu</span><span class="p">(</span><span class="n">layer</span><span class="p">(</span><span class="n">x_in</span><span class="p">))</span>
+        <span class="n">x_out</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">dropout</span><span class="p">(</span><span class="n">x_out</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">training</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">training</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">x_out</span></div>
+
+<div class="viewcode-block" id="PHOCNet.display_forward"><a class="viewcode-back" href="../../../src.nn.phocnet.html#src.nn.phocnet.PHOCNet.display_forward">[docs]</a>    <span class="k">def</span> <span class="nf">display_forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This method displays/ visualizes the outputs of all layers</span>
+
+<span class="sd">        :param x:  input tensor</span>
+<span class="sd">        :return: estimated PHOC</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+        <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+        <span class="k">def</span> <span class="nf">display_img</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">count</span><span class="p">):</span>
+            <span class="n">f_maps</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">f_maps</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="c">#plt.subplot(3,8,count)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s">&#39;jet&#39;</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+        <span class="k">def</span> <span class="nf">display_bar</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">count</span><span class="p">):</span>
+            <span class="n">cmap</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">get_cmap</span><span class="p">(</span><span class="s">&#39;jet&#39;</span><span class="p">)</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">colors</span> <span class="o">=</span> <span class="n">cmap</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span>
+            <span class="c">#plt.subplot(3,5,10+count)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">vals</span><span class="p">)),</span> <span class="n">vals</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">1.</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+        <span class="n">c</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c"># phase 1: conv. 3 x 3 pooling layers + ReLU</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv1_1</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv1_2</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c"># pooling</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pool</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c"># phase 2: conv. after 1st max-pooling: 3 x 3 pooling layers + ReLU</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv2_1</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv2_2</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c"># pooling</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pool</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c"># phase 3: conv. after 2nd max-pooling: 3 x 3 pooling layers + ReLU</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_1</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_2</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_3</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_4</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_5</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv3_6</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c"># phase 4: conv. upscaled channels</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv4_1</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv4_2</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convolute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conv4_3</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_img</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c"># spatial pooling</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pooling_layer_fn</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+        <span class="n">display_bar</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c"># phase 5: linear, fully connected + ReLU(with dropouts)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">linear_dropout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lin5_1</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_bar</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">linear_dropout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lin5_2</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_bar</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c"># phase 6: linear, fullly connected + linear activation</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">linear_act</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lin6_1</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_bar</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c"># phase 7: output layer, fully connected + sigmoid</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">linear_sigmoid</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">display_bar</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c"># plt.show()</span>
+
+        <span class="k">return</span> <span class="n">y</span></div>
+
+<div class="viewcode-block" id="PHOCNet.linear_sigmoid"><a class="viewcode-back" href="../../../src.nn.phocnet.html#src.nn.phocnet.PHOCNet.linear_sigmoid">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">linear_sigmoid</span><span class="p">(</span><span class="n">layer</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">,</span> <span class="n">x_in</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        linear forward pass with sigmoid activation, no dropouts</span>
+
+<span class="sd">        :param layer: linear layer</span>
+<span class="sd">        :param x_in: input tensor</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># sanity checks (Linear, preferably working with Tensors, correct input size)</span>
+        <span class="n">x_in</span> <span class="o">=</span> <span class="n">PHOCNet</span><span class="o">.</span><span class="n">_sanitize_forward</span><span class="p">(</span><span class="n">layer</span><span class="o">=</span><span class="n">layer</span><span class="p">,</span> <span class="n">x_in</span><span class="o">=</span><span class="n">x_in</span><span class="p">,</span> <span class="n">n_channels</span><span class="o">=</span><span class="n">layer</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span> <span class="n">t_layer</span><span class="o">=</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">)</span>
+        <span class="c"># relu activation and dropouts</span>
+        <span class="n">x_out</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">(</span><span class="n">layer</span><span class="p">(</span><span class="n">x_in</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">x_out</span></div>
+
+<div class="viewcode-block" id="PHOCNet.linear_act"><a class="viewcode-back" href="../../../src.nn.phocnet.html#src.nn.phocnet.PHOCNet.linear_act">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">linear_act</span><span class="p">(</span><span class="n">layer</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">,</span> <span class="n">x_in</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        simple linear forward pass</span>
+
+<span class="sd">        :param layer: linear layer</span>
+<span class="sd">        :param x_in: input tensor</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># sanity checks (Linear dropouts, preferably working with Tensors, correct input size)</span>
+        <span class="n">x_in</span> <span class="o">=</span> <span class="n">PHOCNet</span><span class="o">.</span><span class="n">_sanitize_forward</span><span class="p">(</span><span class="n">layer</span><span class="o">=</span><span class="n">layer</span><span class="p">,</span> <span class="n">x_in</span><span class="o">=</span><span class="n">x_in</span><span class="p">,</span> <span class="n">n_channels</span><span class="o">=</span><span class="n">layer</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span> <span class="n">t_layer</span><span class="o">=</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">)</span>
+        <span class="c"># linear activation</span>
+        <span class="n">x_out</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">x_in</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">x_out</span></div>
+
+<div class="viewcode-block" id="PHOCNet.convolute"><a class="viewcode-back" href="../../../src.nn.phocnet.html#src.nn.phocnet.PHOCNet.convolute">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">convolute</span><span class="p">(</span><span class="n">layer</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">,</span> <span class="n">x_in</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        perfoms a 2d convolution with relu activation</span>
+
+<span class="sd">        :param layer: layer for convolution</span>
+<span class="sd">        :param x_in: input tensor</span>
+<span class="sd">        :return: convoluted and activated output</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># sanity checks (only nn.Conv2d layers make sense, preferably working with Tensors, correct input size)</span>
+        <span class="n">x_in</span> <span class="o">=</span> <span class="n">PHOCNet</span><span class="o">.</span><span class="n">_sanitize_forward</span><span class="p">(</span><span class="n">layer</span><span class="o">=</span><span class="n">layer</span><span class="p">,</span> <span class="n">x_in</span><span class="o">=</span><span class="n">x_in</span><span class="p">,</span> <span class="n">n_channels</span><span class="o">=</span><span class="n">layer</span><span class="o">.</span><span class="n">in_channels</span><span class="p">,</span> <span class="n">t_layer</span><span class="o">=</span><span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">)</span>
+        <span class="c"># convolution and activation</span>
+        <span class="n">x_out</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">relu</span><span class="p">(</span><span class="n">layer</span><span class="p">(</span><span class="n">x_in</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">x_out</span></div>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_sanitize_forward</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">x_in</span><span class="p">,</span> <span class="n">n_channels</span><span class="p">,</span> <span class="n">t_layer</span><span class="p">,</span> <span class="n">t_in</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">ch_pos</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Performs sanity checks on layer and input data. Corrects input data if necessary.</span>
+
+<span class="sd">        :param layer: layer to be checked</span>
+<span class="sd">        :param x_in: input data to be checked</span>
+<span class="sd">        :param t_layer: expected type of layer</span>
+<span class="sd">        :param t_in: expected type of input data</span>
+<span class="sd">        :return: correct input</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">t_layer</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;expected type {}, got type {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">t_layer</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">layer</span><span class="p">)))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x_in</span><span class="p">,</span> <span class="n">t_in</span><span class="p">):</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s">&#39;WARNING: expected Tensor, got {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">x_in</span><span class="p">)),</span> <span class="ne">Warning</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+            <span class="n">x_in</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">x_in</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">n_channels</span> <span class="o">==</span> <span class="n">x_in</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="n">ch_pos</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;expected input size {}, got {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">n_channels</span><span class="p">,</span> <span class="n">x_in</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="n">ch_pos</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="n">x_in</span>
+
+<div class="viewcode-block" id="PHOCNet.setup"><a class="viewcode-back" href="../../../src.nn.phocnet.html#src.nn.phocnet.PHOCNet.setup">[docs]</a>    <span class="k">def</span> <span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">pp_type</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pooling_layer_fn</span><span class="o">.</span><span class="n">gpp_type</span><span class="p">)</span>
+        <span class="n">pp_pooling_type</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pooling_layer_fn</span><span class="o">.</span><span class="n">pool_type</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s">&#39;pp_type&#39;</span><span class="p">:</span> <span class="n">pp_type</span><span class="p">,</span> <span class="s">&#39;pp_poolong_type&#39;</span><span class="p">:</span> <span class="n">pp_pooling_type</span><span class="p">,</span>
+                <span class="s">&#39;pp_pooling_levels&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">pooling_layer_fn</span><span class="o">.</span><span class="n">levels</span><span class="p">,</span> <span class="s">&#39;n_out&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">out</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span>
+                <span class="s">&#39;c_in&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">conv1_1</span><span class="o">.</span><span class="n">in_channels</span><span class="p">}</span></div></div>
+
+
+<div class="viewcode-block" id="STNPHOCNet"><a class="viewcode-back" href="../../../src.nn.phocnet.html#src.nn.phocnet.STNPHOCNet">[docs]</a><span class="k">class</span> <span class="nc">STNPHOCNet</span><span class="p">(</span><span class="n">PHOCNet</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    PHOCNet with initial STN layer.</span>
+
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        The STN does not have to be a the STN implemented in :class:`src.nn.stn.STN`.</span>
+<span class="sd">        In fact it can be any model, leaving you the option to use custom STN models.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_out</span><span class="p">,</span> <span class="n">stn</span><span class="o">=</span><span class="k">None</span><span class="p">,</span> <span class="n">input_channels</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                 <span class="n">pp_type</span><span class="o">=</span><span class="n">PPTypes</span><span class="o">.</span><span class="n">T_TPP</span><span class="p">,</span> <span class="n">pooling_levels</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">pool_type</span><span class="o">=</span><span class="n">PPTypePooling</span><span class="o">.</span><span class="n">MAX_POOL</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">n_out</span><span class="o">=</span><span class="n">n_out</span><span class="p">,</span> <span class="n">input_channels</span><span class="o">=</span><span class="n">input_channels</span><span class="p">,</span> <span class="n">pp_type</span><span class="o">=</span><span class="n">pp_type</span><span class="p">,</span> <span class="n">pooling_levels</span><span class="o">=</span><span class="n">pooling_levels</span><span class="p">,</span>
+                         <span class="n">pool_type</span><span class="o">=</span><span class="n">pool_type</span><span class="p">)</span>
+        <span class="c"># sanity checks for STN layer</span>
+        <span class="n">valid_stn</span> <span class="o">=</span> <span class="k">False</span>
+        <span class="k">if</span> <span class="n">stn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="k">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stn</span><span class="p">,</span> <span class="n">STN</span><span class="p">):</span>
+                <span class="n">valid_stn</span> <span class="o">=</span> <span class="k">True</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">valid_stn</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">stn</span> <span class="o">=</span> <span class="n">STN</span><span class="p">(</span><span class="n">input_channels</span><span class="o">=</span><span class="n">input_channels</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">stn</span> <span class="o">=</span> <span class="n">stn</span>
+
+<div class="viewcode-block" id="STNPHOCNet.neural_codes"><a class="viewcode-back" href="../../../src.nn.phocnet.html#src.nn.phocnet.STNPHOCNet.neural_codes">[docs]</a>    <span class="k">def</span> <span class="nf">neural_codes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Performs regular fowardpass with the STN up front.</span>
+
+<span class="sd">        :param x: input image</span>
+<span class="sd">        :param pos: layer-position (offset from the output layer) to extract neural codes from</span>
+<span class="sd">        :return: neural code</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">x_trans</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">stn</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">neural_codes</span><span class="p">(</span><span class="n">x_trans</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="n">pos</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">y</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+      <div class="relbar-bottom">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+      <li><a href="../../../index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Maximilian Rüdiger Springenberg.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.3.0.
+    </div>
+      <!-- PSphinxTheme -->
+  </body>
+</html>

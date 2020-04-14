@@ -1,0 +1,176 @@
+
+
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>src.experiments.word_rec module &#8212; Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</title>
+    <link rel="stylesheet" href="_static/p_sphinx_theme.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/local_fonts.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/javascript" src="_static/jquery.cookie.js"></script>
+    <script type="text/javascript" src="_static/p_sphinx_theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="src.experiments.word_spotting module" href="src.experiments.word_spotting.html" />
+    <link rel="prev" title="src.experiments.visualize_nn_progress module" href="src.experiments.visualize_nn_progress.html" /> 
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head><body>
+      <div class="relbar-top">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+        <li class="right" >
+          <a href="src.experiments.word_spotting.html" title="src.experiments.word_spotting module"
+             accesskey="N">next</a> &nbsp; &nbsp;</li>
+        <li class="right" >
+          <a href="src.experiments.visualize_nn_progress.html" title="src.experiments.visualize_nn_progress module"
+             accesskey="P">previous</a> &nbsp; &nbsp;</li>
+      <li><a href="index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="src.html" >src package</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="src.experiments.html" accesskey="U">src.experiments package</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-src.experiments.word_rec">
+<span id="src-experiments-word-rec-module"></span><h1>src.experiments.word_rec module<a class="headerlink" href="#module-src.experiments.word_rec" title="Permalink to this headline">¶</a></h1>
+<p>This module provides a script to evaluate the WER and CER of a model.</p>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span class="n">python3</span> <span class="n">src</span><span class="o">/</span><span class="n">experiments</span><span class="o">/</span><span class="n">word_rec</span><span class="o">.</span><span class="n">py</span> \
+<span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">state_dict</span> \
+<span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">dir_out</span> \
+<span class="n">dset_name</span> \
+<span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">dset_annotations</span> \
+<span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">imgs</span> \
+<span class="o">--</span><span class="n">gpu_idx</span><span class="o">=</span><span class="n">cuda</span><span class="p">:</span><span class="mi">0</span> \
+<span class="o">--</span><span class="n">estimator</span><span class="o">=</span><span class="n">cosine</span>
+</pre></div>
+</div>
+<p>For options have a look at <a class="reference internal" href="src.parser.args_parser.html#src.parser.args_parser.parser_inference" title="src.parser.args_parser.parser_inference"><code class="xref py py-func docutils literal notranslate"><span class="pre">src.parser.args_parser.parser_inference()</span></code></a></p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<dl class="function">
+<dt id="src.experiments.word_rec.run_word_rec">
+<code class="sig-prename descclassname">src.experiments.word_rec.</code><code class="sig-name descname">run_word_rec</code><span class="sig-paren">(</span><em class="sig-param">net: src.nn.phocnet.PHOCNet</em>, <em class="sig-param">dset: src.io.dataloader.DSetPhoc</em>, <em class="sig-param">estimator: src.estimation.base.Estimator</em>, <em class="sig-param">device=None</em>, <em class="sig-param">n_codes_lvl=0</em>, <em class="sig-param">debug=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/src/experiments/word_rec.html#run_word_rec"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#src.experiments.word_rec.run_word_rec" title="Permalink to this definition">¶</a></dt>
+<dd><p>This method performs the main word recognition and returns error rates in a JSON serilizable dictionary</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>net</strong> – PHOCNet instance</p></li>
+<li><p><strong>dset</strong> – Test Data to evaluate on</p></li>
+<li><p><strong>estimator</strong> – Estimator, used for estimation</p></li>
+<li><p><strong>device</strong> – GPU device</p></li>
+<li><p><strong>n_codes_lvl</strong> – Level to extract neural codes from, 0 is equivalent to a normal forward pass</p></li>
+<li><p><strong>debug</strong> – There will be no output written, but a sample of up to 400 estimated words and respective
+transcriptions printed, if debug is set to True</p></li>
+<li><p><strong>scale</strong> – Scale of images</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>A dictionary containing the tatoal character and word erros, as well as the means/ proportional errors.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="src.experiments.word_rec.save">
+<code class="sig-prename descclassname">src.experiments.word_rec.</code><code class="sig-name descname">save</code><span class="sig-paren">(</span><em class="sig-param">dir_out</em>, <em class="sig-param">json_dict</em>, <em class="sig-param">name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/src/experiments/word_rec.html#save"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#src.experiments.word_rec.save" title="Permalink to this definition">¶</a></dt>
+<dd><p>This method handles saving the errors to json files</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dir_out</strong> – Directory to save output file at</p></li>
+<li><p><strong>json_dict</strong> – JSON object/ dictionary containing the errors</p></li>
+<li><p><strong>name</strong> – The output files name</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/src.experiments.word_rec.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+      <div class="relbar-bottom">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+        <li class="right" >
+          <a href="src.experiments.word_spotting.html" title="src.experiments.word_spotting module"
+             >next</a> &nbsp; &nbsp;</li>
+        <li class="right" >
+          <a href="src.experiments.visualize_nn_progress.html" title="src.experiments.visualize_nn_progress module"
+             >previous</a> &nbsp; &nbsp;</li>
+      <li><a href="index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="src.html" >src package</a> &#187;</li>
+          <li class="nav-item nav-item-2"><a href="src.experiments.html" >src.experiments package</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Maximilian Rüdiger Springenberg.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.3.0.
+    </div>
+      <!-- PSphinxTheme -->
+  </body>
+</html>

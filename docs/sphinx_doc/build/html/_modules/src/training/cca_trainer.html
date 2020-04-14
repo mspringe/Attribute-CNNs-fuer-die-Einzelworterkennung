@@ -1,0 +1,290 @@
+
+
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>src.training.cca_trainer &#8212; Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</title>
+    <link rel="stylesheet" href="../../../_static/p_sphinx_theme.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/local_fonts.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/javascript" src="../../../_static/jquery.cookie.js"></script>
+    <script type="text/javascript" src="../../../_static/p_sphinx_theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head><body>
+      <div class="relbar-top">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+      <li><a href="../../../index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for src.training.cca_trainer</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module provides method to train a single RCCA estimator.</span>
+
+<span class="sd">.. moduleauthor:: Maximilian Springenberg &lt;mspringenberg@gmail.com&gt;</span>
+
+<span class="sd">|</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">argparse</span>
+<span class="kn">import</span> <span class="nn">random</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch.utils.data</span> <span class="k">import</span> <span class="n">DataLoader</span>
+<span class="n">FILE_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">__file__</span><span class="p">))</span>
+<span class="n">SRC_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">FILE_DIR</span><span class="p">,</span> <span class="s">&#39;..&#39;</span><span class="p">,</span> <span class="s">&#39;..&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">))</span>
+<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SRC_DIR</span><span class="p">)</span>
+<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">FILE_DIR</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">src.io</span> <span class="k">import</span> <span class="n">dataloader</span>
+<span class="kn">from</span> <span class="nn">src.estimation</span> <span class="k">import</span> <span class="n">cca</span><span class="p">,</span> <span class="n">cosine</span>
+<span class="kn">from</span> <span class="nn">src.nn.phocnet</span> <span class="k">import</span> <span class="n">PHOCNet</span>
+<span class="kn">from</span> <span class="nn">src.util</span> <span class="k">import</span> <span class="n">phoc_util</span><span class="p">,</span> <span class="n">augmentation_util</span>
+<span class="kn">from</span> <span class="nn">src.training.phocnet_trainer</span> <span class="k">import</span> <span class="n">new_logger</span>
+
+
+<div class="viewcode-block" id="parser"><a class="viewcode-back" href="../../../src.training.cca_trainer.html#src.training.cca_trainer.parser">[docs]</a><span class="k">def</span> <span class="nf">parser</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Since we run training for the CCA and inference for the neural net, we need a custom/ hybrid parser</span>
+
+<span class="sd">    :return: parser for CCA training</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">()</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;dir_out&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s">&#39;dir_out&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;directory to save the NN at&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;dset_name&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s">&#39;dset_name&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;dataset in {iam, gw, rimes}&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;dset_csv&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s">&#39;dset_csv&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;path to csv with meta-data&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;dset_src&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s">&#39;dset_src&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;dir of the dataset&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;net_path&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s">&#39;net_path&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;path to model&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--n_code_lvl&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s">&#39;--n_code_lvl&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;0&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;level to extract neural codes from&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--model_name&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s">&#39;--model_name&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;cca&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;name of your cca estimator&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--gpu_idx&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s">&#39;--gpu_idx&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;none&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;index of gpu_idx tu run on&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--k_fold&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s">&#39;--k_fold&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;1&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;number of fold to train on (gw only)&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--augment&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s">&#39;--augment&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;false&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;augment dataset for evaluation?&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--alphabet&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s">&#39;--alphabet&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;ldp&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;alphabet for PHOC&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--scale_h&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s">&#39;--scale_h&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;none&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;scaled height of input&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--scale_w&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s">&#39;--scale_w&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;none&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;scaled width of input&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--PHOCNet_type&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;normal&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;phocnet model type {stn, normal}&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">&#39;--phoc_lvls&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">phoc_util</span><span class="o">.</span><span class="n">DEFAULT_PHOC_LEVELS</span><span class="p">),</span> <span class="n">help</span><span class="o">=</span><span class="s">&#39;levels of the PHOC&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">parser</span></div>
+
+
+<div class="viewcode-block" id="equal_split"><a class="viewcode-back" href="../../../src.training.cca_trainer.html#src.training.cca_trainer.equal_split">[docs]</a><span class="k">def</span> <span class="nf">equal_split</span><span class="p">(</span><span class="n">dset</span> <span class="p">:</span> <span class="n">dataloader</span><span class="o">.</span><span class="n">DSetPhoc</span><span class="p">,</span> <span class="n">max_sample_size</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    splits the dataset into a subset of max_sample_size with evenly, but not equal distributed word classes</span>
+
+<span class="sd">    :param dset: DSetPhoc object</span>
+<span class="sd">    :param max_sample_size: maximum size of subset</span>
+<span class="sd">    :return: subset with evenly distributed word classes</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c"># sanity</span>
+    <span class="n">max_sample_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">max_sample_size</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">max_sample_size</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">dset</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">dset</span>
+    <span class="c"># mapping words to idcs of occurrence</span>
+    <span class="n">words</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">dset</span><span class="o">.</span><span class="n">words</span><span class="p">)</span>
+    <span class="n">word_to_idcs</span> <span class="o">=</span> <span class="p">{</span><span class="n">w</span> <span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">words</span><span class="p">}</span>
+    <span class="n">word_to_idcs_not_taken</span> <span class="o">=</span> <span class="p">{</span><span class="n">w</span> <span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">words</span><span class="p">}</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">dset</span><span class="p">):</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;transcript&#39;</span><span class="p">]</span>
+        <span class="n">word_to_idcs</span><span class="p">[</span><span class="n">w</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="n">word_to_idcs_not_taken</span><span class="p">[</span><span class="n">w</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="k">True</span><span class="p">)</span>
+    <span class="c"># selecting idcs</span>
+    <span class="n">w_idx</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">idcs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_sample_size</span><span class="p">):</span>
+        <span class="c"># word with fre idcs</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">words</span><span class="p">[</span><span class="n">w_idx</span><span class="p">]</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">word_to_idcs_not_taken</span><span class="p">[</span><span class="n">w</span><span class="p">]):</span>
+            <span class="n">w_idx</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">w_idx</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">words</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">w</span> <span class="o">=</span> <span class="n">words</span><span class="p">[</span><span class="n">w_idx</span><span class="p">]</span>
+        <span class="c"># idx that has not been taken yet</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">word_to_idcs_not_taken</span><span class="p">[</span><span class="n">w</span><span class="p">][</span><span class="n">idx</span><span class="p">]:</span>
+            <span class="n">idx</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c"># selecting idx and marking it as taken</span>
+        <span class="n">idcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">word_to_idcs</span><span class="p">[</span><span class="n">w</span><span class="p">][</span><span class="n">idx</span><span class="p">])</span>
+        <span class="n">word_to_idcs_not_taken</span><span class="p">[</span><span class="n">w</span><span class="p">][</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="k">False</span>
+        <span class="c"># selecting next word class</span>
+        <span class="n">w_idx</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">w_idx</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">words</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="c"># subset</span>
+    <span class="k">return</span> <span class="n">dset</span><span class="o">.</span><span class="n">sub_set</span><span class="p">(</span><span class="n">idcs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="gather_NC_PHOC_pairs"><a class="viewcode-back" href="../../../src.training.cca_trainer.html#src.training.cca_trainer.gather_NC_PHOC_pairs">[docs]</a><span class="k">def</span> <span class="nf">gather_NC_PHOC_pairs</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">dset</span><span class="p">,</span> <span class="n">logger</span><span class="p">,</span> <span class="n">device</span><span class="p">,</span> <span class="n">n_code_lvl</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="p">[</span><span class="k">None</span><span class="p">,</span> <span class="k">None</span><span class="p">]):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    gathering neural codes and PHOC of a dataset</span>
+
+<span class="sd">    :param net: a PHOCNet</span>
+<span class="sd">    :param dset: dataset to estimate neural codes for</span>
+<span class="sd">    :param logger: logger of information</span>
+<span class="sd">    :param device: gpu device to place the PHOCNet on</span>
+<span class="sd">    :param n_code_lvl: level to extract neural codes from (see :func:`src.nn.phocnet.PHOCNet.neural_codes`)</span>
+<span class="sd">    :return: neural codes and true PHOC in that order</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;processing {} images&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dset</span><span class="p">)))</span>
+    <span class="c"># data loader initialization</span>
+    <span class="n">d_loader</span> <span class="o">=</span> <span class="n">DataLoader</span><span class="p">(</span><span class="n">dset</span><span class="p">)</span>
+    <span class="c"># moving net to device, if specified</span>
+    <span class="k">if</span> <span class="n">device</span> <span class="ow">is</span> <span class="ow">not</span> <span class="k">None</span><span class="p">:</span>
+        <span class="n">net</span> <span class="o">=</span> <span class="n">net</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">net</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+    <span class="c"># gather data to perform canonical correlation analysis on</span>
+    <span class="k">if</span> <span class="n">logger</span> <span class="ow">is</span> <span class="ow">not</span> <span class="k">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;gathering neural codes and respective PHOC&#39;</span><span class="p">)</span>
+    <span class="n">neural_codes</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">phocs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">d_loader</span><span class="p">:</span>
+        <span class="c"># gather image and respective PHOC</span>
+        <span class="n">img</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;img&#39;</span><span class="p">]</span>
+        <span class="n">img</span> <span class="o">=</span> <span class="n">augmentation_util</span><span class="o">.</span><span class="n">scale</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="o">*</span><span class="n">scale</span><span class="p">)</span>
+        <span class="n">phoc</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s">&#39;phoc&#39;</span><span class="p">]</span>
+        <span class="c"># batch with size 1 for the image</span>
+        <span class="n">batch</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="n">img</span><span class="o">.</span><span class="n">numpy</span><span class="p">()],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="c"># moving to gpu</span>
+        <span class="k">if</span> <span class="n">device</span> <span class="ow">is</span> <span class="ow">not</span> <span class="k">None</span><span class="p">:</span>
+            <span class="n">batch</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+        <span class="c"># extract neural codes</span>
+        <span class="n">n_code</span> <span class="o">=</span> <span class="n">net</span><span class="o">.</span><span class="n">neural_codes</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="n">n_code_lvl</span><span class="p">)</span>
+        <span class="c"># numpy conversion of neural code and PHOC</span>
+        <span class="n">n_code</span> <span class="o">=</span> <span class="n">n_code</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">phoc</span> <span class="o">=</span> <span class="n">phoc</span><span class="o">.</span><span class="n">numpy</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+        <span class="c"># storing vectors</span>
+        <span class="n">phocs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">phoc</span><span class="p">)</span>
+        <span class="n">neural_codes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n_code</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;done gathering&#39;</span><span class="p">)</span>
+    <span class="c"># freeing the gpu memory</span>
+    <span class="n">batch</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+    <span class="n">net</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+    <span class="c"># numpy conversion of samples</span>
+    <span class="n">neural_codes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">neural_codes</span><span class="p">)</span>
+    <span class="n">phocs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">phocs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">neural_codes</span><span class="p">,</span> <span class="n">phocs</span></div>
+
+
+<div class="viewcode-block" id="run_cca_training"><a class="viewcode-back" href="../../../src.training.cca_trainer.html#src.training.cca_trainer.run_cca_training">[docs]</a><span class="k">def</span> <span class="nf">run_cca_training</span><span class="p">(</span><span class="n">dset</span> <span class="p">:</span> <span class="n">dataloader</span><span class="o">.</span><span class="n">DSetPhoc</span><span class="p">,</span> <span class="n">net</span> <span class="p">:</span> <span class="n">PHOCNet</span><span class="p">,</span> <span class="n">words</span> <span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="k">None</span><span class="p">,</span> <span class="n">n_code_lvl</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">augment</span><span class="o">=</span><span class="k">False</span><span class="p">,</span>
+                     <span class="n">logger</span><span class="o">=</span><span class="k">None</span><span class="p">,</span> <span class="n">reg</span><span class="o">=</span><span class="mi">10</span><span class="n">e3</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">alphabet</span><span class="o">=</span><span class="n">phoc_util</span><span class="o">.</span><span class="n">DEFAULT_ALPHABET</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Training a cca on a dataset, given a PHOCNet.</span>
+
+<span class="sd">    :param dset: dataset to train the RCCA on</span>
+<span class="sd">    :param net: a PHOCNet</span>
+<span class="sd">    :param words: lexicon of words</span>
+<span class="sd">    :param device: gpu device to place the PHOCNet on</span>
+<span class="sd">    :param n_code_lvl: level to extract neural codes from (see :func:`src.nn.phocnet.PHOCNet.neural_codes`)</span>
+<span class="sd">    :param augment: whether to augment images</span>
+<span class="sd">    :param logger: logger of information</span>
+<span class="sd">    :param reg: regularization hyper parameter for RCCA</span>
+<span class="sd">    :param dim: dimension hyper parameter for RCCA</span>
+<span class="sd">    :param alphabet: alphabet used</span>
+<span class="sd">    :return: trained RCCA</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c"># augmentation</span>
+    <span class="k">if</span> <span class="n">augment</span><span class="p">:</span>
+        <span class="n">dset</span><span class="o">.</span><span class="n">augment_imgs</span> <span class="o">=</span> <span class="k">True</span>
+    <span class="c"># gather NC and PHOC</span>
+    <span class="n">neural_codes</span><span class="p">,</span> <span class="n">phocs</span> <span class="o">=</span> <span class="n">gather_NC_PHOC_pairs</span><span class="p">(</span><span class="n">net</span><span class="o">=</span><span class="n">net</span><span class="p">,</span> <span class="n">dset</span><span class="o">=</span><span class="n">dset</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span> <span class="n">n_code_lvl</span><span class="o">=</span><span class="n">n_code_lvl</span><span class="p">)</span>
+    <span class="c"># train CCA, based on NC and PHOC</span>
+    <span class="n">est_cca</span> <span class="o">=</span> <span class="n">train_cca</span><span class="p">(</span><span class="n">neural_codes</span><span class="o">=</span><span class="n">neural_codes</span><span class="p">,</span> <span class="n">phocs</span><span class="o">=</span><span class="n">phocs</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">dim</span><span class="p">,</span> <span class="n">reg</span><span class="o">=</span><span class="n">reg</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">,</span> <span class="n">words</span><span class="o">=</span><span class="n">words</span><span class="p">,</span>
+                        <span class="n">alphabet</span><span class="o">=</span><span class="n">alphabet</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">est_cca</span></div>
+
+<div class="viewcode-block" id="train_cca"><a class="viewcode-back" href="../../../src.training.cca_trainer.html#src.training.cca_trainer.train_cca">[docs]</a><span class="k">def</span> <span class="nf">train_cca</span><span class="p">(</span><span class="n">neural_codes</span><span class="p">,</span> <span class="n">phocs</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">reg</span><span class="p">,</span> <span class="n">logger</span><span class="p">,</span> <span class="n">words</span><span class="p">,</span> <span class="n">alphabet</span><span class="o">=</span><span class="n">phoc_util</span><span class="o">.</span><span class="n">DEFAULT_ALPHABET</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Training a RCCA, given neural codes and respective PHOC</span>
+
+<span class="sd">    :param neural_codes: neural codes</span>
+<span class="sd">    :param phocs: respective PHOC</span>
+<span class="sd">    :param dim: dimension hyper parameter for RCCA</span>
+<span class="sd">    :param reg: regularization hyper parameter for RCCA</span>
+<span class="sd">    :param logger: logger of information</span>
+<span class="sd">    :param words: lexicon of words</span>
+<span class="sd">    :param alphabet: alphabet used</span>
+<span class="sd">    :return: trained RCCA</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c"># initialize estimator</span>
+    <span class="n">est_cca</span> <span class="o">=</span> <span class="n">cca</span><span class="o">.</span><span class="n">RCCAEstimator</span><span class="p">(</span><span class="n">words</span><span class="o">=</span><span class="n">words</span><span class="p">,</span> <span class="n">n_dim</span><span class="o">=</span><span class="n">dim</span><span class="p">,</span> <span class="n">reg</span><span class="o">=</span><span class="n">reg</span><span class="p">,</span> <span class="n">alphabet</span><span class="o">=</span><span class="n">alphabet</span><span class="p">)</span>
+    <span class="c"># CCA</span>
+    <span class="k">if</span> <span class="n">logger</span> <span class="ow">is</span> <span class="ow">not</span> <span class="k">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;Training CCA, sample size: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">neural_codes</span><span class="p">)))</span>
+    <span class="n">est_cca</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">neural_codes</span><span class="p">,</span> <span class="n">phocs</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">logger</span> <span class="ow">is</span> <span class="ow">not</span> <span class="k">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;Finished training&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">est_cca</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+      <div class="relbar-bottom">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+      <li><a href="../../../index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Maximilian Rüdiger Springenberg.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.3.0.
+    </div>
+      <!-- PSphinxTheme -->
+  </body>
+</html>

@@ -1,0 +1,245 @@
+
+
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>src.nn.pp &#8212; Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</title>
+    <link rel="stylesheet" href="../../../_static/p_sphinx_theme.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/local_fonts.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/javascript" src="../../../_static/jquery.cookie.js"></script>
+    <script type="text/javascript" src="../../../_static/p_sphinx_theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head><body>
+      <div class="relbar-top">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+      <li><a href="../../../index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for src.nn.pp</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Implmentation of different pyramidal pooling layers</span>
+
+<span class="sd">    * SPP: spatial pyramidal pooling (vertical and horizontal bins)</span>
+<span class="sd">    * TPP: temporal pyramidal pooling (horizontal bins only)</span>
+
+
+<span class="sd">I took some inspiration from a pre-existing implementation of the</span>
+<span class="sd">`PHOCNet &lt;https://github.com/georgeretsi/pytorch-phocnet&gt;`__.</span>
+
+<span class="sd">.. moduleauthor:: Maximilian Springenberg &lt;mspringenberg@gmail.com&gt;</span>
+
+<span class="sd">|</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">deepcopy</span>
+<span class="kn">from</span> <span class="nn">enum</span> <span class="k">import</span> <span class="n">Enum</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch</span> <span class="k">import</span> <span class="n">nn</span>
+<span class="kn">import</span> <span class="nn">torch.nn.functional</span> <span class="k">as</span> <span class="nn">F</span>
+
+
+<div class="viewcode-block" id="PPTypes"><a class="viewcode-back" href="../../../src.nn.pp.html#src.nn.pp.PPTypes">[docs]</a><span class="k">class</span> <span class="nc">PPTypes</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;unique values for pyramidal pooling-types/versions&quot;&quot;&quot;</span>
+    <span class="n">T_SPP</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">T_TPP</span> <span class="o">=</span> <span class="mi">3</span></div>
+
+
+<div class="viewcode-block" id="PPTypePooling"><a class="viewcode-back" href="../../../src.nn.pp.html#src.nn.pp.PPTypePooling">[docs]</a><span class="k">class</span> <span class="nc">PPTypePooling</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;unique values for pyramidal pooling-pooling procedure&quot;&quot;&quot;</span>
+    <span class="n">MAX_POOL</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="n">AVG_POOL</span> <span class="o">=</span> <span class="mi">5</span></div>
+
+
+<div class="viewcode-block" id="GPP"><a class="viewcode-back" href="../../../src.nn.pp.html#src.nn.pp.GPP">[docs]</a><span class="k">class</span> <span class="nc">GPP</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Generic class for SPP and TPP layers&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gpp_type</span><span class="o">=</span><span class="n">PPTypes</span><span class="o">.</span><span class="n">T_TPP</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">pool_type</span><span class="o">=</span><span class="n">PPTypePooling</span><span class="o">.</span><span class="n">MAX_POOL</span><span class="p">,</span> <span class="n">n_f_maps</span><span class="o">=</span><span class="mi">512</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param gpp_type: pyramidal pooling version/ type</span>
+<span class="sd">        :param levels: levels of pyramid/ complete binary tree</span>
+<span class="sd">        :param pool_type: pooling procedure</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="c"># setting globals</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__gpp_type</span> <span class="o">=</span> <span class="k">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__pool_type</span> <span class="o">=</span> <span class="k">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pooling_output_size</span> <span class="o">=</span> <span class="k">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">levels</span> <span class="o">=</span> <span class="n">levels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_f_maps</span> <span class="o">=</span> <span class="n">n_f_maps</span>
+        <span class="c"># setting properties</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pool_type</span> <span class="o">=</span> <span class="n">pool_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gpp_type</span> <span class="o">=</span> <span class="n">gpp_type</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">gpp_type</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__gpp_type</span><span class="p">)</span>
+
+    <span class="nd">@gpp_type</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">gpp_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gpp_type</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param gpp_type: pyramidal pooling version/ type</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># sanity</span>
+        <span class="k">if</span> <span class="n">gpp_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">PPTypes</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Unknown gpp_type. Must be in {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">PPTypes</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">gpp_type</span> <span class="o">==</span> <span class="n">PPTypes</span><span class="o">.</span><span class="n">T_SPP</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pooling_output_size</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="mi">4</span> <span class="o">**</span> <span class="n">level</span> <span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">levels</span><span class="p">)])</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_f_maps</span>
+        <span class="k">elif</span> <span class="n">gpp_type</span> <span class="o">==</span> <span class="n">PPTypes</span><span class="o">.</span><span class="n">T_TPP</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pooling_output_size</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="bp">self</span><span class="o">.</span><span class="n">levels</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_f_maps</span>
+            <span class="c">#self.pooling_output_size = sum([level + 1 for level in range(self.levels)]) * self.n_f_maps</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__gpp_type</span> <span class="o">=</span> <span class="n">gpp_type</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">pool_type</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__pool_type</span><span class="p">)</span>
+
+    <span class="nd">@pool_type</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">pool_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pool_type</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param pool_type: pooling procedure</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># sanity</span>
+        <span class="k">if</span> <span class="n">pool_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">PPTypePooling</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Unknown pool_type. Must be in{}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">PPTypePooling</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__pool_type</span> <span class="o">=</span> <span class="n">pool_type</span>
+
+<div class="viewcode-block" id="GPP.forward"><a class="viewcode-back" href="../../../src.nn.pp.html#src.nn.pp.GPP.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_x</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param input_x: input of filters</span>
+<span class="sd">        :return: Vector of concatenated, pooled bins</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># spatial pyramid forward pass</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">gpp_type</span> <span class="o">==</span> <span class="n">PPTypes</span><span class="o">.</span><span class="n">T_SPP</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_spatial_pyramid_pooling</span><span class="p">(</span><span class="n">input_x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">levels</span><span class="p">)</span>
+        <span class="c"># temporal pyramid forward pass</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">gpp_type</span> <span class="o">==</span> <span class="n">PPTypes</span><span class="o">.</span><span class="n">T_TPP</span><span class="p">:</span>
+            <span class="c">#return self._temporal_pyramid_pooling(input_x, self.levels)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_temporal_pyramid_pooling_BT</span><span class="p">(</span><span class="n">input_x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">levels</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s">&#39;global gpp_type not in {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">PPTypes</span><span class="p">))</span></div>
+
+    <span class="k">def</span> <span class="nf">_pyramid_pooling</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_x</span><span class="p">,</span> <span class="n">output_sizes</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param input_x: input of filters</span>
+<span class="sd">        :param output_sizes: tuple containing numbers of vertical and horizontal bins, in that order</span>
+<span class="sd">        :return: Vector of concatenated, respectively pooled bins</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pyramid_level_tensors</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">tsize</span> <span class="ow">in</span> <span class="n">output_sizes</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pool_type</span> <span class="o">==</span> <span class="n">PPTypePooling</span><span class="o">.</span><span class="n">MAX_POOL</span><span class="p">:</span>
+                <span class="n">pyramid_level_tensor</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">adaptive_max_pool2d</span><span class="p">(</span><span class="n">input_x</span><span class="p">,</span> <span class="n">tsize</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pool_type</span> <span class="o">==</span> <span class="n">PPTypePooling</span><span class="o">.</span><span class="n">AVG_POOL</span><span class="p">:</span>
+                <span class="n">pyramid_level_tensor</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">adaptive_avg_pool2d</span><span class="p">(</span><span class="n">input_x</span><span class="p">,</span> <span class="n">tsize</span><span class="p">)</span>
+            <span class="n">pyramid_level_tensor</span> <span class="o">=</span> <span class="n">pyramid_level_tensor</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">input_x</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">pyramid_level_tensors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pyramid_level_tensor</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">pyramid_level_tensors</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_spatial_pyramid_pooling</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_x</span><span class="p">,</span> <span class="n">levels</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param input_x: input of filters</span>
+<span class="sd">        :param levels: levels of pyramid/ complete binary tree</span>
+<span class="sd">        :return: spatially pooled bins</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">output_sizes</span> <span class="o">=</span> <span class="p">[(</span><span class="nb">int</span><span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="n">level</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="n">level</span><span class="p">))</span> <span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">levels</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pyramid_pooling</span><span class="p">(</span><span class="n">input_x</span><span class="p">,</span> <span class="n">output_sizes</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_temporal_pyramid_pooling_BT</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_x</span><span class="p">,</span> <span class="n">levels</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        temporal pyramidal pooling with bin-tree structure (exponential grow of levels with base 2)</span>
+
+<span class="sd">        :param input_x: input of filters</span>
+<span class="sd">        :param levels: levels of pyramid/ complete binary tree</span>
+<span class="sd">        :return: temporally pooled bins</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">output_sizes</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="n">level</span><span class="p">))</span> <span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">levels</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pyramid_pooling</span><span class="p">(</span><span class="n">input_x</span><span class="p">,</span> <span class="n">output_sizes</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_temporal_pyramid_pooling</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_x</span><span class="p">,</span> <span class="n">levels</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        classic temporal pyramidal pooling</span>
+
+<span class="sd">        :param input_x: input of filters</span>
+<span class="sd">        :param levels: levels of pyramid/ complete binary tree</span>
+<span class="sd">        :return: temporally pooled bins</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">output_sizes</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">1</span><span class="p">,</span> <span class="n">level</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">levels</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pyramid_pooling</span><span class="p">(</span><span class="n">input_x</span><span class="p">,</span> <span class="n">output_sizes</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+      <div class="relbar-bottom">
+            
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> &nbsp; &nbsp;</li>
+      <li><a href="../../../index.html">Attribute CNNs für die Einzelworterkennung August 12 2019 documentation</a> &#187;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019, Maximilian Rüdiger Springenberg.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.3.0.
+    </div>
+      <!-- PSphinxTheme -->
+  </body>
+</html>
