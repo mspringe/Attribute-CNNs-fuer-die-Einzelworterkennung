@@ -5,7 +5,7 @@ Attribute CNNs für die Einzelworterkennung (Attribute CNNs for Handwriting Word
 .. image:: docs/images/pipeline_wrec.png
 
 
-As part of my bachelors thesis, I implemented experiments that utilized variantions of the PHOCNet for word recognition.
+As part of my bachelors thesis, I implemented experiments that utilized variations of the PHOCNet for word recognition.
 All relevant source code resides in this repository.
 
 The documentation can be accesed at `https://mspringe.github.io/Attribute-CNNs-fuer-die-Einzelworterkennung/ <https://mspringe.github.io/Attribute-CNNs-fuer-die-Einzelworterkennung/>`__.
