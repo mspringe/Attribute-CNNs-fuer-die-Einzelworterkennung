@@ -12,7 +12,9 @@ The documentation can be accesed at `https://mspringe.github.io/Attribute-CNNs-f
 
 All contents of this repository are free for academic use and academic use only.
 If you use any of this code for scientific purpose, I would urge you to cite all papers listed in `Related Works`_.
-Also, if you heavily base your work on this code I would ask you to consider referencing my thesis listed in `Thesis`_ as well.
+
+Also, if you heavily base your work on this code, you can choose whether to cite my thesis or not, as citing bachelor theses is not common practice.
+If you should choose to reference or read up on my thesis, all relevant information is listed in `Thesis`_.
 
 
 .. _`Related Works`:
@@ -21,7 +23,7 @@ Related Works
 =============
 
 I based my work on the following papers.
-Please cite the papers and articles listed below, if you use The PHOCNet, Probabilistic Retrieval Model or residing code.
+Please cite the papers and articles listed below, if you use the PHOCNet, Probabilistic Retrieval Model or residing code.
 
 
 The PHOCNet by Sudholt and Fink:
@@ -100,3 +102,4 @@ If you should choose to reference it, I would suggest using the following biblio
         month = {August},
         note = {(bachelor thesis)}
     }
+
