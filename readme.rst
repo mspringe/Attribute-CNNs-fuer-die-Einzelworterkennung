@@ -64,7 +64,7 @@ The Probabilistic Retrieval Model by Rusakov et al.:
     }
 
 
-Also I took great inspiration from the following Paper by Retsinal et al., when writing this code.
+Also I took great inspiration from the following Paper by Retsinas et al., when writing this code.
 Hence, I would urge you to cite their work as well.
 
 ::
